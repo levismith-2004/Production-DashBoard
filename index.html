@@ -2426,17 +2426,6 @@ async function connectFromSettings() {
 // ═══════════════════════════════════════════════════════════════════
 //  TABS & SIDEBAR
 // ═══════════════════════════════════════════════════════════════════
-const SIDEBAR_TABS = {
-  matrix: 'People',
-  departments: 'People',
-  runsheet: 'Services',
-};
-const SIDEBAR_ACTIONS = {
-  matrix: buildSidebarPeople,
-  departments: buildSidebarPeople,
-  runsheet: buildRunsheetSidebar,
-};
-
 let currentTab = 'home';
 function switchTab(tabId) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -2445,11 +2434,14 @@ function switchTab(tabId) {
   document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
   currentTab = tabId;
 
+  const sidebarTitles = { matrix: 'People', departments: 'People', runsheet: 'Services' };
+  const sidebarActions = { matrix: buildSidebarPeople, departments: buildSidebarPeople, runsheet: buildRunsheetSidebar };
+
   const sidebar = document.getElementById('sidebar');
-  if (SIDEBAR_TABS[tabId]) {
+  if (sidebarTitles[tabId]) {
     sidebar.style.display = 'flex';
-    document.getElementById('sidebar-title').textContent = SIDEBAR_TABS[tabId];
-    if (SIDEBAR_ACTIONS[tabId]) SIDEBAR_ACTIONS[tabId]();
+    document.getElementById('sidebar-title').textContent = sidebarTitles[tabId];
+    if (sidebarActions[tabId]) sidebarActions[tabId]();
   } else {
     sidebar.style.display = 'none';
   }
