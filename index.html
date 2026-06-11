@@ -262,26 +262,30 @@ a { color: var(--accent); text-decoration: none; }
   padding: 7px 12px; border-radius: var(--radius-sm); outline: none; cursor: pointer;
 }
 #matrix-controls select:focus { border-color: var(--accent); }
-.matrix-wrapper { overflow: auto; width: 100%; }
-.matrix-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+
+/* Wrapper scrolls in both directions; table never shrinks below natural width */
+.matrix-wrapper { overflow: auto; width: 100%; max-height: calc(100vh - 200px); }
+.matrix-table { border-collapse: collapse; table-layout: fixed; width: max-content; min-width: 100%; }
 .matrix-table th, .matrix-table td { border: 1px solid var(--border); padding: 0; }
 .matrix-table th {
   background: var(--surface); font-size: 11px; font-weight: 600;
   color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
   white-space: nowrap; position: sticky; top: 0; z-index: 2;
+  min-width: 160px; width: 160px;
 }
 .matrix-table th.pos-header {
-  width: 110px; left: 0; z-index: 3; background: var(--surface); font-family: var(--mono);
+  width: 120px; min-width: 120px; left: 0; z-index: 3;
+  background: var(--surface); font-family: var(--mono);
 }
-.col-header { padding: 8px 10px; }
+.col-header { padding: 10px 12px; }
 .col-subhead { font-size: 10px; font-weight: 400; color: var(--muted2); margin-top: 2px; }
 .matrix-table td.pos-cell {
   background: var(--surface); position: sticky; left: 0; z-index: 1;
-  padding: 0 10px; white-space: nowrap; width: 110px; height: 80px;
+  padding: 0 12px; white-space: nowrap; width: 120px; min-width: 120px; height: 96px;
   font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted);
 }
-/* Each data cell — no padding, acts as the container */
-.matrix-cell { padding: 0; vertical-align: top; position: relative; height: 80px; }
+/* Each data cell — fixed size, scrolls with table */
+.matrix-cell { padding: 0; vertical-align: top; position: relative; height: 96px; width: 160px; min-width: 160px; }
 
 /* Full-cell person block (confirmed / pending / declined / draft) */
 .cell-person {
