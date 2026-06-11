@@ -1444,10 +1444,9 @@ async function loadMatrixAllSunday() {
         .then(d => (d.data || []).map(p => ({ ...p, _stId: id })))
         .catch(() => [])
     ));
-    // Merge and sort by sort_date, then slice to count
+    // Merge and sort by sort_date — keep ALL plans from both types, don't slice
     const merged = planFetches.flat()
-      .sort((a, b) => (a.attributes.sort_date || '').localeCompare(b.attributes.sort_date || ''))
-      .slice(0, count);
+      .sort((a, b) => (a.attributes.sort_date || '').localeCompare(b.attributes.sort_date || ''));
 
     matrixPlans = merged;
 
@@ -1495,24 +1494,26 @@ function renderMatrixAllSunday() {
   const people = teamPeople;
 
   let html = '<div class="matrix-wrapper"><table class="matrix-table">';
-  html += '<colgroup><col style="width:120px"/>' + matrixPlans.map(() => '<col style="width:160px"/>').join('') + '</colgroup>';
-  html += '<thead><tr>';
-  html += '<th class="pos-header"><div class="col-header">Position</div></th>';
+  html += '<colgroup><col style="width:120px;min-width:120px;max-width:120px"/>'
+    + matrixPlans.map(() => '<col style="width:160px;min-width:160px;max-width:160px"/>').join('')
+    + '</colgroup>';
+  html += '<thead>';
 
+  // Row 1: date + service label headers
+  html += '<tr><th class="pos-header">Position</th>';
   matrixPlans.forEach(plan => {
     const a = plan.attributes;
-    const planId = plan.id;
     const planStId = plan._stId;
     const stLabel = planStId === '288103' ? '5pm' : (a.title || '');
-    html += `<th>
-      <div class="col-header">
-        ${esc(a.dates || a.short_dates || a.sort_date.slice(0,10))}
-        <div class="col-subhead">${esc(stLabel)}</div>
-      </div>
-      <div class="col-send-all">
-        <button class="btn-send-all" onclick="sendAllForPlan('${planStId}','${planId}','5764089')">▲ Send All</button>
-      </div>
-    </th>`;
+    html += `<th><div class="col-header">${esc(a.dates || a.short_dates || a.sort_date.slice(0,10))}<div class="col-subhead">${esc(stLabel)}</div></div></th>`;
+  });
+  html += '</tr>';
+
+  // Row 2: Send All buttons
+  html += '<tr><th class="pos-header"></th>';
+  matrixPlans.forEach(plan => {
+    const planStId = plan._stId;
+    html += `<th style="padding:4px 6px"><button class="btn-send-all" style="width:100%" onclick="sendAllForPlan('${planStId}','${plan.id}','5764089')">▲ Send All</button></th>`;
   });
   html += '</tr></thead><tbody>';
 
@@ -1539,23 +1540,23 @@ function renderMatrix(stId, teamId, positions, people) {
   }
 
   let html = '<div class="matrix-wrapper"><table class="matrix-table">';
-  html += '<colgroup><col style="width:120px"/>' + matrixPlans.map(() => '<col style="width:160px"/>').join('') + '</colgroup>';
-  html += '<thead><tr>';
-  html += '<th class="pos-header"><div class="col-header">Position</div></th>';
+  html += '<colgroup><col style="width:120px;min-width:120px;max-width:120px"/>'
+    + matrixPlans.map(() => '<col style="width:160px;min-width:160px;max-width:160px"/>').join('')
+    + '</colgroup>';
+  html += '<thead>';
 
+  // Row 1: date headers
+  html += '<tr><th class="pos-header">Position</th>';
   matrixPlans.forEach(plan => {
     const a = plan.attributes;
-    const planId = plan.id;
-    const draftCount = positions.filter(pos => matrixDrafts[`${planId}-${pos.name}`]).length;
-    html += `<th>
-      <div class="col-header">
-        ${esc(a.dates || a.short_dates || a.sort_date.slice(0,10))}
-        <div class="col-subhead">${esc(a.series_title || a.title || '')}</div>
-      </div>
-      <div class="col-send-all">
-        <button class="btn-send-all" onclick="sendAllForPlan('${stId}','${planId}','${teamId}')">▲ Send All</button>
-      </div>
-    </th>`;
+    html += `<th><div class="col-header">${esc(a.dates || a.short_dates || a.sort_date.slice(0,10))}<div class="col-subhead">${esc(a.series_title || a.title || '')}</div></div></th>`;
+  });
+  html += '</tr>';
+
+  // Row 2: Send All buttons (separate row so they don't force column widths)
+  html += '<tr><th class="pos-header" style="font-size:10px;color:var(--muted2)"></th>';
+  matrixPlans.forEach(plan => {
+    html += `<th style="padding:4px 6px"><button class="btn-send-all" style="width:100%" onclick="sendAllForPlan('${stId}','${plan.id}','${teamId}')">▲ Send All</button></th>`;
   });
   html += '</tr></thead><tbody>';
 
