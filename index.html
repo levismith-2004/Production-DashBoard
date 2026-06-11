@@ -355,6 +355,10 @@ a { color: var(--accent); text-decoration: none; }
   border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Matrix cell highlight / dim for person selection */
+.matrix-cell.cell-highlighted { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
+.matrix-cell.cell-dimmed { opacity: .25; }
+
 /* ── People sidebar items with highlight ─────────────────────── */
 .person-highlight-all .sidebar-item { opacity: .4; }
 .person-highlight-all .sidebar-item.highlight { opacity: 1; }
@@ -416,27 +420,40 @@ a { color: var(--accent); text-decoration: none; }
   padding: 8px 12px; border-radius: var(--radius-sm); outline: none; width: 220px;
 }
 #inv-search:focus { border-color: var(--accent); }
-.inv-category-block { margin-bottom: 28px; }
+.inv-category-block { margin-bottom: 16px; }
 .inv-category-header {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+  padding: 6px 10px; background: var(--surface2); border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: 1px solid var(--border); border-bottom: none;
 }
 .inv-category-label {
   font-family: var(--mono); font-size: 12px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .08em; color: var(--accent);
 }
 .inv-category-count { font-size: 11px; color: var(--muted); }
-.inv-table { width: 100%; border-collapse: collapse; }
+/* Single shared table wrapper — all category tables are inside one <table> so columns align */
+.inv-table {
+  width: 100%; border-collapse: collapse;
+  table-layout: fixed;
+}
+.inv-col-item    { width: 22%; }
+.inv-col-brand   { width: 12%; }
+.inv-col-qty     { width: 5%; }
+.inv-col-value   { width: 8%; }
+.inv-col-retail  { width: 8%; }
+.inv-col-loc     { width: 13%; }
+.inv-col-notes   { width: auto; }
+.inv-col-actions { width: 90px; }
 .inv-table th {
   text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .05em; padding: 6px 10px;
-  border-bottom: 1px solid var(--border); white-space: nowrap;
+  text-transform: uppercase; letter-spacing: .05em; padding: 7px 10px;
+  background: var(--surface); border: 1px solid var(--border); white-space: nowrap;
 }
 .inv-table td {
-  padding: 9px 10px; border-bottom: 1px solid var(--border);
-  font-size: 13px; vertical-align: top;
+  padding: 9px 10px; border: 1px solid var(--border);
+  font-size: 13px; vertical-align: top; overflow: hidden;
 }
-.inv-table td.notes-cell { max-width: 240px; word-break: break-word; white-space: pre-wrap; }
+.inv-table td.notes-cell { word-break: break-word; white-space: pre-wrap; }
 .inv-table tr:hover td { background: var(--surface2); }
 .inv-table .actions { display: flex; gap: 4px; }
 
@@ -1174,7 +1191,7 @@ async function buildWeekServices() {
     return;
   }
 
-  // For each, load team members (limit to production team)
+  // For each event, load team members and skip if no production people found
   let html = '';
   for (const ev of thisWeek) {
     const plan = ev.plan;
@@ -1184,8 +1201,11 @@ async function buildWeekServices() {
         `/services/v2/service_types/${stId}/plans/${plan.id}/team_members?per_page=100`
       );
       const members = membersData.data || [];
-      const prodMembers = members.filter(m => m.attributes.team_name === 'Production' ||
-        teamPeople.some(tp => tp.id === m.relationships.person.data.id));
+      // Only include if at least one member is a known production person
+      const prodMembers = members.filter(m =>
+        teamPeople.some(tp => tp.id === m.relationships.person.data.id)
+      );
+      if (!prodMembers.length) continue; // skip — no production team here
 
       // Build position pills
       const posMap = {};
@@ -1219,10 +1239,12 @@ async function buildWeekServices() {
       console.warn('Week service load error:', e);
     }
   }
-  container.innerHTML = html || '<div style="color:var(--muted);font-size:13px">No data.</div>';
+  container.innerHTML = html || '<div style="color:var(--muted);font-size:13px">No services with production team this week.</div>';
 }
 
 // ─── Gaps list ────────────────────────────────────────────────────
+const SUNDAY_ST_IDS = new Set(['288093', '288103']);
+
 async function buildGapsList() {
   const container = document.getElementById('gaps-list');
   const now = new Date();
@@ -1231,10 +1253,13 @@ async function buildGapsList() {
   const nowStr = now.toISOString().slice(0, 10);
   const fwStr = fourWeeks.toISOString().slice(0, 10);
 
-  const upcoming = allCalEvents.filter(e => e.date >= nowStr && e.date <= fwStr);
+  // Only Sunday AM + Sunday PM
+  const upcoming = allCalEvents.filter(e =>
+    e.date >= nowStr && e.date <= fwStr && SUNDAY_ST_IDS.has(e.stId)
+  );
 
   if (!upcoming.length) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No upcoming services found.</div>';
+    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No Sunday services found in the next 4 weeks.</div>';
     return;
   }
 
@@ -1254,7 +1279,7 @@ async function buildGapsList() {
   }
 
   if (!gapRows.length) {
-    container.innerHTML = '<div style="color:var(--green);font-size:13px">✓ No gaps found in the next 4 weeks!</div>';
+    container.innerHTML = '<div style="color:var(--green);font-size:13px">✓ No gaps in Sunday rosters for the next 4 weeks!</div>';
     return;
   }
 
@@ -1271,9 +1296,14 @@ async function buildGapsList() {
 // ═══════════════════════════════════════════════════════════════════
 //  MATRIX
 // ═══════════════════════════════════════════════════════════════════
+const ALL_SUNDAY_ID = '__all_sunday__';
+
 function buildMatrixDropdown() {
   const sel = document.getElementById('matrix-st-select');
-  sel.innerHTML = '<option value="">— Select service type —</option>' +
+  sel.innerHTML =
+    '<option value="">— Select service type —</option>' +
+    // Synthetic "All Sunday" option at top
+    `<option value="${ALL_SUNDAY_ID}">⛪ All Sunday (8am + 10:15am + 5pm)</option>` +
     serviceTypes.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
 }
 
@@ -1297,6 +1327,12 @@ async function loadMatrix(stId) {
   const container = document.getElementById('matrix-container');
   container.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading matrix…</div>';
   matrixDrafts = {};
+
+  // ── All Sunday: synthetic merge of 288093 + 288103 ──────────────
+  if (stId === ALL_SUNDAY_ID) {
+    await loadMatrixAllSunday();
+    return;
+  }
 
   try {
     const count = parseInt(document.getElementById('matrix-plan-count').value) || 10;
@@ -1373,6 +1409,112 @@ async function loadMatrix(stId) {
     console.warn('loadMatrix error:', e);
     container.innerHTML = `<div class="state-msg" style="color:var(--red)">Error loading matrix: ${esc(e.message)}</div>`;
   }
+}
+
+}
+
+// ── All Sunday synthetic matrix: merges Sunday AM (288093) + Sunday PM (288103) ──
+async function loadMatrixAllSunday() {
+  const container = document.getElementById('matrix-container');
+  const count = parseInt(document.getElementById('matrix-plan-count').value) || 10;
+  const sundayIds = ['288093', '288103'];
+  // Verify these IDs exist in loaded service types; fall back gracefully
+  const validIds = sundayIds.filter(id => serviceTypes.some(s => s.id === id));
+  if (!validIds.length) {
+    container.innerHTML = '<div class="state-msg" style="color:var(--red)">Sunday service types not found. Check IDs 288093 / 288103.</div>';
+    return;
+  }
+
+  try {
+    // Fetch plans from both service types in parallel
+    const planFetches = await Promise.all(validIds.map(id =>
+      pcoGet(`/services/v2/service_types/${id}/plans?filter=future&per_page=${count}&order=sort_date`)
+        .then(d => (d.data || []).map(p => ({ ...p, _stId: id })))
+        .catch(() => [])
+    ));
+    // Merge and sort by sort_date, then slice to count
+    const merged = planFetches.flat()
+      .sort((a, b) => (a.attributes.sort_date || '').localeCompare(b.attributes.sort_date || ''))
+      .slice(0, count);
+
+    matrixPlans = merged;
+
+    // For each plan, stId comes from plan._stId
+    matrixMembers = {};
+    matrixNeeded = {};
+    await Promise.all(matrixPlans.map(async (plan) => {
+      const planStId = plan._stId;
+      try {
+        let members = [], offset = 0;
+        while (true) {
+          const mData = await pcoGet(
+            `/services/v2/service_types/${planStId}/plans/${plan.id}/team_members?per_page=100${offset ? `&offset=${offset}` : ''}`
+          );
+          members = members.concat(mData.data || []);
+          if (mData.meta && mData.meta.next) { offset += 100; } else break;
+        }
+        matrixMembers[plan.id] = members;
+        const nData = await pcoGet(
+          `/services/v2/service_types/${planStId}/plans/${plan.id}/needed_positions?per_page=100&where[team_id]=5764089`
+        );
+        matrixNeeded[plan.id] = nData.data || [];
+      } catch (e) {
+        console.warn(`All-Sunday plan ${plan.id} error:`, e);
+        matrixMembers[plan.id] = [];
+        matrixNeeded[plan.id] = [];
+      }
+    }));
+
+    // Render — pass ALL_SUNDAY_ID as stId; renderCell/sendDraft will use plan._stId
+    renderMatrixAllSunday();
+  } catch (e) {
+    console.warn('loadMatrixAllSunday error:', e);
+    container.innerHTML = `<div class="state-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderMatrixAllSunday() {
+  const container = document.getElementById('matrix-container');
+  if (!matrixPlans.length) {
+    container.innerHTML = '<div class="state-msg">No upcoming Sunday plans found.</div>';
+    return;
+  }
+  const positions = teamPositions;
+  const people = teamPeople;
+
+  let html = '<div class="matrix-wrapper"><table class="matrix-table"><thead><tr>';
+  html += '<th class="pos-header"><div class="col-header">Position</div></th>';
+
+  matrixPlans.forEach(plan => {
+    const a = plan.attributes;
+    const planId = plan.id;
+    const planStId = plan._stId;
+    const stLabel = planStId === '288103' ? '5pm' : (a.title || '');
+    html += `<th>
+      <div class="col-header">
+        ${esc(a.dates || a.short_dates || a.sort_date.slice(0,10))}
+        <div class="col-subhead">${esc(stLabel)}</div>
+      </div>
+      <div class="col-send-all">
+        <button class="btn-send-all" onclick="sendAllForPlan('${planStId}','${planId}','5764089')">▲ Send All</button>
+      </div>
+    </th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  positions.forEach(pos => {
+    html += `<tr><td class="pos-cell">${esc(pos.name)}</td>`;
+    matrixPlans.forEach(plan => {
+      const planStId = plan._stId;
+      html += `<td class="matrix-cell" id="mc-${plan.id}-${encodeURIComponent(pos.name)}">`;
+      html += renderCell(planStId, '5764089', plan, pos, people);
+      html += '</td>';
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
 }
 
 function renderMatrix(stId, teamId, positions, people) {
@@ -1513,7 +1655,10 @@ function renderCellById(stId, planId, posName) {
   const plan = matrixPlans.find(p => p.id === planId);
   const pos = { name: posName };
   if (!plan) return '';
-  return renderCell(stId, '5764089', plan, pos, teamPeople);
+  // For All Sunday plans, use the plan's own stId
+  const effectiveStId = plan._stId || stId;
+  const effectiveTeamId = '5764089';
+  return renderCell(effectiveStId, effectiveTeamId, plan, pos, teamPeople);
 }
 
 function clearDraft(draftKey) {
@@ -1833,25 +1978,56 @@ async function runAutoRoster() {
 //  DEPARTMENTS
 // ═══════════════════════════════════════════════════════════════════
 function selectPerson(personId, personName) {
-  // Update active sidebar item
+  // Mark active in sidebar
   document.querySelectorAll('#sidebar-content .sidebar-item').forEach(el => {
-    el.classList.remove('active', 'highlight');
+    el.classList.remove('active');
   });
   const item = document.getElementById(`si-${personId}`);
-  if (item) { item.classList.add('active', 'highlight'); }
+  if (item) item.classList.add('active');
 
-  // Highlight in matrix
   highlightedPersonId = personId;
-  highlightMatrixPerson(personId);
 
-  // Load departments view if on that tab
-  const panel = document.getElementById('panel-departments');
-  if (panel.classList.contains('active')) {
+  if (currentTab === 'matrix') {
+    // Stay on matrix — highlight all cells where this person appears
+    highlightMatrixPerson(personId);
+  } else if (currentTab === 'departments') {
     loadDepartmentsForPerson(personId, personName);
-  } else {
-    // Switch to departments tab
-    switchTab('departments');
-    loadDepartmentsForPerson(personId, personName);
+  }
+  // On other tabs, selecting a person just marks them active in the sidebar
+}
+
+function clearMatrixHighlight() {
+  document.querySelectorAll('.matrix-cell').forEach(cell => {
+    cell.classList.remove('cell-highlighted', 'cell-dimmed');
+  });
+  highlightedPersonId = null;
+  document.querySelectorAll('#sidebar-content .sidebar-item').forEach(el => el.classList.remove('active'));
+}
+
+function highlightMatrixPerson(personId) {
+  // Remove previous highlight state
+  document.querySelectorAll('.matrix-cell').forEach(cell => {
+    cell.classList.remove('cell-highlighted', 'cell-dimmed');
+  });
+  if (!personId) return;
+
+  let anyFound = false;
+  matrixPlans.forEach(plan => {
+    const members = matrixMembers[plan.id] || [];
+    members.forEach(m => {
+      if (m.relationships.person.data.id === personId) {
+        const posName = m.attributes.team_position_name;
+        const cell = document.getElementById(`mc-${plan.id}-${encodeURIComponent(posName)}`);
+        if (cell) { cell.classList.add('cell-highlighted'); anyFound = true; }
+      }
+    });
+  });
+
+  if (anyFound) {
+    // Dim all non-highlighted cells so the highlighted ones pop
+    document.querySelectorAll('.matrix-cell').forEach(cell => {
+      if (!cell.classList.contains('cell-highlighted')) cell.classList.add('cell-dimmed');
+    });
   }
 }
 
@@ -1861,7 +2037,7 @@ async function loadDepartmentsForPerson(personId, personName) {
   content.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading…</div>';
 
   try {
-    // Get all plans this person is in across all service types
+    // Get all plans this person is in across all loaded service types
     let rows = [];
     for (const st of serviceTypes) {
       const plans = allPlans[st.id] || [];
@@ -1903,12 +2079,11 @@ async function loadDepartmentsForPerson(personId, personName) {
   }
 }
 
-function highlightMatrixPerson(personId) {
-  document.querySelectorAll('.cell-person').forEach(el => {
-    el.style.opacity = '';
-  });
-  if (!personId) return;
-  // This is a visual-only hint — full highlight would need a full re-render
+// Remove highlight when clicking elsewhere in the matrix
+function onMatrixClick(e) {
+  if (!e.target.closest('.matrix-cell') && !e.target.closest('#sidebar-content')) {
+    clearMatrixHighlight();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2057,62 +2232,40 @@ function renderInventory() {
     return;
   }
 
-  let html = '';
-  const activeCats = catFilter ? [catFilter] : categories;
-  activeCats.forEach(cat => {
-    const catItems = items.filter(i => i.category === cat);
-    if (!catItems.length) return;
-    html += `
-      <div class="inv-category-block">
-        <div class="inv-category-header">
-          <div class="inv-category-label">${cat}</div>
-          <div class="inv-category-count">${catItems.length} item${catItems.length !== 1 ? 's' : ''}</div>
-        </div>
-        <table class="inv-table">
-          <thead><tr>
-            <th style="min-width:160px">Item</th>
-            <th style="min-width:100px">Brand</th>
-            <th style="min-width:60px">Qty</th>
-            <th style="min-width:80px">Value</th>
-            <th style="min-width:80px">Retail</th>
-            <th style="min-width:120px">Location</th>
-            <th>Notes</th>
-            <th style="width:80px"></th>
-          </tr></thead>
-          <tbody>
-            ${catItems.map(item => `
-              <tr>
-                <td style="font-weight:500">${esc(item.item)}</td>
-                <td>${esc(item.brand)}</td>
-                <td style="font-family:var(--mono)">${item.quantity}</td>
-                <td style="font-family:var(--mono)">${fmtCurrency(item.value)}</td>
-                <td style="font-family:var(--mono)">${fmtCurrency(item.retailValue)}</td>
-                <td>${esc(item.location)}</td>
-                <td class="notes-cell">${esc(item.notes)}</td>
-                <td>
-                  <div class="inv-table actions">
-                    <button class="btn btn-ghost btn-sm" onclick="openInvModal('${esc(item.id)}')">Edit</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteInvItem('${esc(item.id)}','${esc(item.item)}')">✕</button>
-                  </div>
-                </td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  });
+  // Single shared table with colgroup — all category sections share the same column widths
+  const colgroup = `<colgroup>
+    <col class="inv-col-item"/><col class="inv-col-brand"/><col class="inv-col-qty"/>
+    <col class="inv-col-value"/><col class="inv-col-retail"/><col class="inv-col-loc"/>
+    <col class="inv-col-notes"/><col class="inv-col-actions"/>
+  </colgroup>`;
+  const thead = `<thead><tr>
+    <th>Item</th><th>Brand</th><th>Qty</th><th>Value</th>
+    <th>Retail</th><th>Location</th><th>Notes</th><th></th>
+  </tr></thead>`;
 
-  // Uncategorised
-  const uncatItems = items.filter(i => !categories.includes(i.category));
-  if (uncatItems.length) {
-    html += `<div class="inv-category-block">
-      <div class="inv-category-header">
-        <div class="inv-category-label" style="color:var(--muted)">Uncategorised</div>
-        <div class="inv-category-count">${uncatItems.length} item(s)</div>
-      </div>
-      <table class="inv-table"><thead><tr>
-        <th>Item</th><th>Brand</th><th>Qty</th><th>Value</th><th>Retail</th><th>Location</th><th>Notes</th><th></th>
-      </tr></thead><tbody>
-        ${uncatItems.map(item => `
+  const activeCats = catFilter ? [catFilter] : [...categories, '__uncat__'];
+  let html = `<table class="inv-table">${colgroup}`;
+  let first = true;
+
+  activeCats.forEach(cat => {
+    const catItems = cat === '__uncat__'
+      ? items.filter(i => !categories.includes(i.category))
+      : items.filter(i => i.category === cat);
+    if (!catItems.length) return;
+
+    const catLabel = cat === '__uncat__' ? 'Uncategorised' : cat;
+    const catColor = cat === '__uncat__' ? 'var(--muted)' : 'var(--accent)';
+
+    // Category header row spans all columns
+    html += `${first ? thead : ''}
+      <tbody>
+        <tr>
+          <td colspan="8" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-top:${first?'':'2px solid var(--border2)'}">
+            <span style="font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${catColor}">${catLabel}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:8px">${catItems.length} item${catItems.length !== 1 ? 's' : ''}</span>
+          </td>
+        </tr>
+        ${catItems.map(item => `
           <tr>
             <td style="font-weight:500">${esc(item.item)}</td>
             <td>${esc(item.brand)}</td>
@@ -2121,14 +2274,18 @@ function renderInventory() {
             <td style="font-family:var(--mono)">${fmtCurrency(item.retailValue)}</td>
             <td>${esc(item.location)}</td>
             <td class="notes-cell">${esc(item.notes)}</td>
-            <td><div class="actions">
-              <button class="btn btn-ghost btn-sm" onclick="openInvModal('${esc(item.id)}')">Edit</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteInvItem('${esc(item.id)}','${esc(item.item)}')">✕</button>
-            </div></td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm" onclick="openInvModal('${esc(item.id)}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteInvItem('${esc(item.id)}','${esc(item.item)}')">✕</button>
+              </div>
+            </td>
           </tr>`).join('')}
-      </tbody></table></div>`;
-  }
+      </tbody>`;
+    first = false;
+  });
 
+  html += '</table>';
   container.innerHTML = html;
 }
 
@@ -2295,6 +2452,11 @@ function switchTab(tabId) {
     if (SIDEBAR_ACTIONS[tabId]) SIDEBAR_ACTIONS[tabId]();
   } else {
     sidebar.style.display = 'none';
+  }
+
+  // Clear matrix highlight when leaving matrix
+  if (tabId !== 'matrix') {
+    document.querySelectorAll('.matrix-cell').forEach(c => c.classList.remove('cell-highlighted','cell-dimmed'));
   }
 
   // Lazy-load tabs
