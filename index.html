@@ -264,64 +264,84 @@ a { color: var(--accent); text-decoration: none; }
 #matrix-controls select:focus { border-color: var(--accent); }
 .matrix-wrapper { overflow: auto; width: 100%; }
 .matrix-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-.matrix-table th, .matrix-table td {
-  border: 1px solid var(--border); padding: 0;
-}
+.matrix-table th, .matrix-table td { border: 1px solid var(--border); padding: 0; }
 .matrix-table th {
   background: var(--surface); font-size: 11px; font-weight: 600;
   color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
   white-space: nowrap; position: sticky; top: 0; z-index: 2;
 }
 .matrix-table th.pos-header {
-  width: 110px; left: 0; z-index: 3; background: var(--surface);
-  font-family: var(--mono);
+  width: 110px; left: 0; z-index: 3; background: var(--surface); font-family: var(--mono);
 }
 .col-header { padding: 8px 10px; }
 .col-subhead { font-size: 10px; font-weight: 400; color: var(--muted2); margin-top: 2px; }
 .matrix-table td.pos-cell {
   background: var(--surface); position: sticky; left: 0; z-index: 1;
-  padding: 0 10px; height: 80px; white-space: nowrap; width: 110px;
+  padding: 0 10px; white-space: nowrap; width: 110px; height: 80px;
   font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted);
 }
-.matrix-cell { padding: 6px 8px; height: 80px; vertical-align: middle; }
+/* Each data cell — no padding, acts as the container */
+.matrix-cell { padding: 0; vertical-align: top; position: relative; height: 80px; }
+
+/* Full-cell person block (confirmed / pending / declined / draft) */
 .cell-person {
-  display: flex; align-items: center; justify-content: space-between; gap: 4px;
-  padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid;
-  font-size: 12px; font-weight: 500; height: 40px;
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 8px 10px; border: none; font-size: 12px; font-weight: 500;
+  overflow: hidden;
 }
-.cell-person.confirmed { background: var(--green-glow); border-color: rgba(74,222,128,.3); color: var(--green); }
-.cell-person.pending   { background: var(--yellow-glow); border-color: rgba(251,191,36,.3); color: var(--yellow); }
-.cell-person.declined  { background: var(--red-glow); border-color: rgba(248,113,113,.3); color: var(--red); }
-.cell-person.draft     { background: var(--accent-glow); border-color: rgba(56,189,248,.4); color: var(--accent); }
-.cell-person-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cell-remove { opacity: .6; font-size: 14px; padding: 0 2px; line-height: 1; }
-.cell-remove:hover { opacity: 1; color: var(--red); }
+.cell-person.confirmed { background: var(--green-glow); color: var(--green); border-left: 3px solid var(--green); }
+.cell-person.pending   { background: var(--yellow-glow); color: var(--yellow); border-left: 3px solid var(--yellow); }
+.cell-person.declined  { background: var(--red-glow); color: var(--red); border-left: 3px solid var(--red); }
+.cell-person.draft     { background: var(--accent-glow); color: var(--accent); border-left: 3px solid var(--accent); }
+
+.cell-person-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; font-size: 12px; margin-bottom: 4px;
+}
+.cell-person-status {
+  font-size: 10px; opacity: .7; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em;
+}
+
+/* Action buttons overlaid in top-right corner */
+.cell-actions {
+  position: absolute; top: 4px; right: 4px;
+  display: flex; gap: 3px; opacity: 0; transition: opacity .15s;
+}
+.matrix-cell:hover .cell-actions { opacity: 1; }
+.cell-btn {
+  font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px;
+  line-height: 1.4; cursor: pointer; border: none;
+}
+.cell-btn-send {
+  background: var(--accent); color: #0A0E17;
+}
+.cell-btn-send:hover { background: var(--accent2); }
+.cell-btn-remove {
+  background: rgba(248,113,113,.15); color: var(--red); border: 1px solid rgba(248,113,113,.3);
+}
+.cell-btn-remove:hover { background: var(--red-glow); }
+
+/* Empty cell assign dropdown */
 .cell-assign {
-  display: flex; align-items: center; gap: 4px; height: 40px;
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 6px 8px; gap: 4px;
 }
 .cell-assign select {
-  flex: 1; background: var(--bg); border: 1px solid var(--border2);
+  width: 100%; background: var(--bg); border: 1px solid var(--border2);
   border-radius: var(--radius-sm); color: var(--muted); padding: 4px 6px;
-  font-size: 11px; outline: none; height: 32px; cursor: pointer;
+  font-size: 11px; outline: none; cursor: pointer;
 }
 .cell-assign select:focus { border-color: var(--accent); }
 .cell-assign .btn-draft {
-  height: 32px; padding: 0 8px; border-radius: var(--radius-sm);
+  width: 100%; padding: 4px 8px; border-radius: var(--radius-sm);
   background: var(--accent-glow); color: var(--accent); font-size: 11px;
-  border: 1px solid rgba(56,189,248,.3); white-space: nowrap;
+  border: 1px solid rgba(56,189,248,.3); font-weight: 600; text-align: center;
 }
 .cell-assign .btn-draft:hover { background: rgba(56,189,248,.25); }
-.cell-send {
-  margin-top: 3px; display: flex; gap: 3px;
-}
-.btn-send-cell {
-  font-size: 10px; padding: 2px 8px; border-radius: 3px;
-  background: var(--accent); color: #0A0E17; font-weight: 600;
-}
-.btn-send-cell:hover { background: var(--accent2); }
-.col-send-all {
-  display: flex; justify-content: center; padding: 4px 8px;
-}
+
+.col-send-all { display: flex; justify-content: center; padding: 4px 8px; }
 .btn-send-all {
   font-size: 11px; padding: 4px 12px; border-radius: var(--radius-sm);
   background: var(--accent-glow); color: var(--accent);
@@ -1402,63 +1422,69 @@ function renderCell(stId, teamId, plan, pos, people) {
 
   // Find existing PCO members for this position
   const members = (matrixMembers[planId] || []).filter(m =>
-    m.attributes.team_position_name === posName ||
     m.attributes.team_position_name === posName
   );
 
-  let html = '';
+  // Draft entry takes priority in display if present alongside empty slot
+  const draft = matrixDrafts[draftKey];
 
-  // Render existing PCO entries
-  members.forEach(m => {
+  // If there's a PCO entry, show it (full cell, action buttons on hover)
+  if (members.length > 0) {
+    const m = members[0]; // show first; unlikely to have >1 per position
     const name = m.attributes.name || '';
     const status = statusLabel(m.attributes.status);
     const planPersonId = m.id;
-    html += `
-      <div class="cell-person ${status}" id="cp-${planPersonId}">
-        <span class="cell-person-name" title="${esc(name)}">${esc(name)}</span>
-        <button class="cell-remove" title="Remove from PCO"
+    const statusText = status === 'confirmed' ? 'Confirmed' : status === 'declined' ? 'Declined' : 'Pending';
+    return `
+      <div class="cell-person ${status}">
+        <div class="cell-person-name" title="${esc(name)}">${esc(name)}</div>
+        <div class="cell-person-status">${statusText}</div>
+      </div>
+      <div class="cell-actions">
+        <button class="cell-btn cell-btn-remove" title="Remove from PCO"
           onclick="removeRosterEntry('${stId}','${planId}','${planPersonId}')">✕</button>
       </div>`;
-  });
+  }
 
-  // Draft entry
-  const draft = matrixDrafts[draftKey];
+  // Draft (not yet sent to PCO)
   if (draft) {
-    html += `
+    return `
       <div class="cell-person draft">
-        <span class="cell-person-name" title="${esc(draft.personName)}">${esc(draft.personName)}</span>
-        <button class="cell-remove" onclick="clearDraft('${draftKey}')" title="Clear draft">✕</button>
+        <div class="cell-person-name" title="${esc(draft.personName)}">${esc(draft.personName)}</div>
+        <div class="cell-person-status">Draft — not sent</div>
       </div>
-      <div class="cell-send">
-        <button class="btn-send-cell"
+      <div class="cell-actions">
+        <button class="cell-btn cell-btn-send"
           onclick="sendDraft('${stId}','${planId}','${teamId}','${draftKey}','${draft.personId}','${esc(posName)}')">▲ Send</button>
-      </div>`;
-  } else if (members.length === 0) {
-    // Assign dropdown
-    const planDate = (plan.attributes.sort_date || '').slice(0, 10);
-    const peopleOptions = people.map(p => {
-      // Conflict: already rostered in a different position this plan
-      const alreadyRostered = (matrixMembers[planId] || []).some(m =>
-        m.relationships.person.data.id === p.id &&
-        m.attributes.team_position_name !== posName
-      );
-      const isPrimary = primaryPeople.includes(p.id);
-      const conflict = alreadyRostered ? ' ⚠' : '';
-      const star = isPrimary ? '★ ' : '';
-      return `<option value="${p.id}" ${alreadyRostered ? 'style="color:var(--yellow)"' : ''}>${star}${esc(p.name)}${conflict}</option>`;
-    }).join('');
-
-    html += `
-      <div class="cell-assign">
-        <select id="sel-${planId}-${encodeURIComponent(posName)}" style="font-size:11px">
-          <option value="">— assign —</option>
-          ${peopleOptions}
-        </select>
-        <button class="btn-draft"
-          onclick="addDraft('${stId}','${planId}','${esc(posName)}')">+</button>
+        <button class="cell-btn cell-btn-remove" title="Clear draft"
+          onclick="clearDraft('${draftKey}')">✕</button>
       </div>`;
   }
-  return html;
+
+  // Empty — show assign dropdown
+  const peopleOptions = people.map(p => {
+    const alreadyRostered = (matrixMembers[planId] || []).some(m =>
+      m.relationships.person.data.id === p.id &&
+      m.attributes.team_position_name !== posName
+    );
+    const alreadyDrafted = Object.entries(matrixDrafts).some(([k, v]) =>
+      k.startsWith(planId + '-') && k !== draftKey && v.personId === p.id
+    );
+    const isPrimary = primaryPeople.includes(p.id);
+    const conflict = (alreadyRostered || alreadyDrafted) ? ' ⚠' : '';
+    const star = isPrimary ? '★ ' : '';
+    return `<option value="${p.id}" ${(alreadyRostered || alreadyDrafted) ? 'style="color:var(--yellow)"' : ''}>${star}${esc(p.name)}${conflict}</option>`;
+  }).join('');
+
+  return `
+    <div class="cell-assign">
+      <select id="sel-${planId}-${encodeURIComponent(posName)}">
+        <option value="">— assign —</option>
+        ${peopleOptions}
+      </select>
+      <button class="btn-draft"
+        onclick="addDraft('${stId}','${planId}','${esc(posName)}')">+ Draft</button>
+    </div>`;
 }
 
 function addDraft(stId, planId, posName) {
