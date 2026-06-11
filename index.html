@@ -433,29 +433,40 @@ a { color: var(--accent); text-decoration: none; }
 .inv-category-count { font-size: 11px; color: var(--muted); }
 /* Single shared table wrapper — all category tables are inside one <table> so columns align */
 .inv-table {
-  width: 100%; border-collapse: collapse;
-  table-layout: fixed;
+  width: 100%; border-collapse: collapse; table-layout: fixed;
 }
-.inv-col-item    { width: 22%; }
-.inv-col-brand   { width: 12%; }
+.inv-col-item    { width: 20%; }
+.inv-col-brand   { width: 13%; }
 .inv-col-qty     { width: 5%; }
 .inv-col-value   { width: 8%; }
 .inv-col-retail  { width: 8%; }
-.inv-col-loc     { width: 13%; }
+.inv-col-loc     { width: 12%; }
 .inv-col-notes   { width: auto; }
-.inv-col-actions { width: 90px; }
+.inv-col-actions { width: 80px; }
 .inv-table th {
   text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
   text-transform: uppercase; letter-spacing: .05em; padding: 7px 10px;
   background: var(--surface); border: 1px solid var(--border); white-space: nowrap;
 }
 .inv-table td {
-  padding: 9px 10px; border: 1px solid var(--border);
-  font-size: 13px; vertical-align: top; overflow: hidden;
+  padding: 8px 10px; border: 1px solid var(--border);
+  font-size: 13px; vertical-align: middle; overflow: hidden;
 }
-.inv-table td.notes-cell { word-break: break-word; white-space: pre-wrap; }
+.inv-table td.notes-cell { word-break: break-word; white-space: pre-wrap; vertical-align: top; }
 .inv-table tr:hover td { background: var(--surface2); }
-.inv-table .actions { display: flex; gap: 4px; }
+.inv-table td.actions-cell { padding: 4px 6px; white-space: nowrap; }
+.inv-table .actions { display: flex; gap: 4px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
+
+/* Inventory totals bar */
+.inv-totals {
+  display: flex; gap: 24px; align-items: center; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 13px;
+}
+.inv-total-item { display: flex; flex-direction: column; gap: 2px; }
+.inv-total-label { font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted); font-family: var(--mono); }
+.inv-total-value { font-family: var(--mono); font-size: 16px; font-weight: 600; color: var(--accent); }
 
 /* ── Inventory modal ─────────────────────────────────────────── */
 .modal-overlay {
@@ -773,7 +784,8 @@ option.primary-person::before { content: '★ '; }
         </div>
         <div class="form-group">
           <label class="form-label">Brand</label>
-          <input class="form-input" id="inv-f-brand" type="text" placeholder="e.g. Shure"/>
+          <input class="form-input" id="inv-f-brand" type="text" placeholder="e.g. Shure" list="brand-datalist" autocomplete="off"/>
+          <datalist id="brand-datalist"></datalist>
         </div>
       </div>
       <div class="form-row">
@@ -2230,7 +2242,26 @@ function renderInventory() {
     return;
   }
 
-  // Single shared table with colgroup — all category sections share the same column widths
+  // ── Totals bar ────────────────────────────────────────────────
+  const totalItems = items.reduce((s, i) => s + (i.quantity || 1), 0);
+  const totalValue = items.reduce((s, i) => s + ((i.value || 0) * (i.quantity || 1)), 0);
+  const totalRetail = items.reduce((s, i) => s + ((i.retailValue || 0) * (i.quantity || 1)), 0);
+  const totalsHtml = `<div class="inv-totals">
+    <div class="inv-total-item">
+      <div class="inv-total-label">Total Items</div>
+      <div class="inv-total-value">${totalItems}</div>
+    </div>
+    <div class="inv-total-item">
+      <div class="inv-total-label">Purchase Value</div>
+      <div class="inv-total-value">${fmtCurrency(totalValue)}</div>
+    </div>
+    <div class="inv-total-item">
+      <div class="inv-total-label">Retail Value</div>
+      <div class="inv-total-value" style="color:var(--accent2)">${fmtCurrency(totalRetail)}</div>
+    </div>
+  </div>`;
+
+  // ── Single shared table ───────────────────────────────────────
   const colgroup = `<colgroup>
     <col class="inv-col-item"/><col class="inv-col-brand"/><col class="inv-col-qty"/>
     <col class="inv-col-value"/><col class="inv-col-retail"/><col class="inv-col-loc"/>
@@ -2242,37 +2273,49 @@ function renderInventory() {
   </tr></thead>`;
 
   const activeCats = catFilter ? [catFilter] : [...categories, '__uncat__'];
-  let html = `<table class="inv-table">${colgroup}`;
+  let tableHtml = `<table class="inv-table">${colgroup}`;
   let first = true;
 
   activeCats.forEach(cat => {
-    const catItems = cat === '__uncat__'
+    let catItems = cat === '__uncat__'
       ? items.filter(i => !categories.includes(i.category))
       : items.filter(i => i.category === cat);
     if (!catItems.length) return;
 
+    // Sort by brand (ascending, blanks last), then by item name
+    catItems = catItems.slice().sort((a, b) => {
+      const ba = (a.brand || '').toLowerCase();
+      const bb = (b.brand || '').toLowerCase();
+      if (!ba && bb) return 1;
+      if (ba && !bb) return -1;
+      if (ba !== bb) return ba.localeCompare(bb);
+      return (a.item || '').toLowerCase().localeCompare((b.item || '').toLowerCase());
+    });
+
     const catLabel = cat === '__uncat__' ? 'Uncategorised' : cat;
     const catColor = cat === '__uncat__' ? 'var(--muted)' : 'var(--accent)';
+    const catCount = catItems.length;
+    const catValue = catItems.reduce((s, i) => s + ((i.value || 0) * (i.quantity || 1)), 0);
 
-    // Category header row spans all columns
-    html += `${first ? thead : ''}
+    tableHtml += `${first ? thead : ''}
       <tbody>
         <tr>
-          <td colspan="8" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-top:${first?'':'2px solid var(--border2)'}">
+          <td colspan="8" style="padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-top:${first?'':'2px solid var(--border2)'}">
             <span style="font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${catColor}">${catLabel}</span>
-            <span style="font-size:11px;color:var(--muted);margin-left:8px">${catItems.length} item${catItems.length !== 1 ? 's' : ''}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:8px">${catCount} item${catCount !== 1 ? 's' : ''}</span>
+            <span style="font-size:11px;color:var(--muted2);margin-left:12px;font-family:var(--mono)">${fmtCurrency(catValue)}</span>
           </td>
         </tr>
         ${catItems.map(item => `
           <tr>
             <td style="font-weight:500">${esc(item.item)}</td>
             <td>${esc(item.brand)}</td>
-            <td style="font-family:var(--mono)">${item.quantity}</td>
-            <td style="font-family:var(--mono)">${fmtCurrency(item.value)}</td>
-            <td style="font-family:var(--mono)">${fmtCurrency(item.retailValue)}</td>
+            <td style="font-family:var(--mono);text-align:right">${item.quantity}</td>
+            <td style="font-family:var(--mono);text-align:right">${fmtCurrency(item.value)}</td>
+            <td style="font-family:var(--mono);text-align:right">${fmtCurrency(item.retailValue)}</td>
             <td>${esc(item.location)}</td>
             <td class="notes-cell">${esc(item.notes)}</td>
-            <td>
+            <td class="actions-cell">
               <div class="actions">
                 <button class="btn btn-ghost btn-sm" onclick="openInvModal('${esc(item.id)}')">Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteInvItem('${esc(item.id)}','${esc(item.item)}')">✕</button>
@@ -2283,8 +2326,8 @@ function renderInventory() {
     first = false;
   });
 
-  html += '</table>';
-  container.innerHTML = html;
+  tableHtml += '</table>';
+  container.innerHTML = totalsHtml + tableHtml;
 }
 
 let editingInvId = null;
@@ -2292,6 +2335,11 @@ function openInvModal(id) {
   editingInvId = id;
   const modal = document.getElementById('inv-modal');
   document.getElementById('inv-modal-title').textContent = id ? 'Edit Item' : 'Add Item';
+
+  // Populate brand datalist with unique brands from inventory
+  const brands = [...new Set(inventoryItems.map(i => i.brand).filter(Boolean))].sort();
+  document.getElementById('brand-datalist').innerHTML = brands.map(b => `<option value="${esc(b)}"/>`).join('');
+
   if (id) {
     const item = inventoryItems.find(i => i.id === id);
     if (!item) return;
@@ -2331,6 +2379,8 @@ async function saveInvItem() {
     notes: document.getElementById('inv-f-notes').value.trim(),
   };
   if (!item.item) { toast('Item name is required.', 'error'); return; }
+  // category is optional — if blank, omit from payload (Airtable rejects empty single-select)
+  if (!item.category) delete item.category;
   try {
     let res;
     if (editingInvId) {
