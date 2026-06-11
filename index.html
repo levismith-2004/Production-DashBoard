@@ -136,16 +136,18 @@ a { color: var(--accent); text-decoration: none; }
 #sidebar-header {
   height: 44px; flex-shrink: 0; display: flex; align-items: center;
   justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border);
+  overflow: hidden;
 }
 #sidebar-title { font-size: 11px; font-weight: 600; text-transform: uppercase;
   letter-spacing: .08em; color: var(--muted); white-space: nowrap; overflow: hidden; }
-#sidebar-toggle { color: var(--muted); padding: 4px; border-radius: 4px; }
+#sidebar-toggle { color: var(--muted); padding: 4px; border-radius: 4px; flex-shrink: 0; }
 #sidebar-toggle:hover { color: var(--text); background: var(--surface2); }
-#sidebar-content { flex: 1; overflow-y: auto; padding: 8px 0; }
+#sidebar-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }
 .sidebar-item {
   display: flex; align-items: center; gap: 8px; padding: 7px 12px;
   cursor: pointer; border-radius: 4px; margin: 0 6px;
-  font-size: 13px; color: var(--muted); white-space: nowrap; transition: all .15s;
+  font-size: 13px; color: var(--muted); transition: all .15s;
+  overflow: hidden; min-width: 0;
 }
 .sidebar-item:hover { background: var(--surface2); color: var(--text); }
 .sidebar-item.active { background: var(--accent-glow); color: var(--accent); }
@@ -156,6 +158,7 @@ a { color: var(--accent); text-decoration: none; }
   font-size: 11px; font-weight: 600; color: var(--muted);
 }
 .sidebar-item.highlight .avatar { border-color: var(--accent); color: var(--accent); }
+.sidebar-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 #sidebar.collapsed .sidebar-item span { display: none; }
 #sidebar.collapsed #sidebar-title { display: none; }
 
@@ -259,28 +262,28 @@ a { color: var(--accent); text-decoration: none; }
   padding: 7px 12px; border-radius: var(--radius-sm); outline: none; cursor: pointer;
 }
 #matrix-controls select:focus { border-color: var(--accent); }
-.matrix-wrapper { overflow: auto; }
-.matrix-table { border-collapse: collapse; width: max-content; }
+.matrix-wrapper { overflow: auto; width: 100%; }
+.matrix-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
 .matrix-table th, .matrix-table td {
   border: 1px solid var(--border); padding: 0;
 }
 .matrix-table th {
   background: var(--surface); font-size: 11px; font-weight: 600;
   color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
-  white-space: nowrap; min-width: 140px; position: sticky; top: 0; z-index: 2;
+  white-space: nowrap; position: sticky; top: 0; z-index: 2;
 }
 .matrix-table th.pos-header {
-  min-width: 110px; left: 0; z-index: 3; background: var(--surface);
+  width: 110px; left: 0; z-index: 3; background: var(--surface);
   font-family: var(--mono);
 }
-.col-header { padding: 8px 12px; }
+.col-header { padding: 8px 10px; }
 .col-subhead { font-size: 10px; font-weight: 400; color: var(--muted2); margin-top: 2px; }
 .matrix-table td.pos-cell {
   background: var(--surface); position: sticky; left: 0; z-index: 1;
-  padding: 0 12px; height: 56px; white-space: nowrap;
+  padding: 0 10px; height: 80px; white-space: nowrap; width: 110px;
   font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted);
 }
-.matrix-cell { padding: 6px 8px; height: 56px; min-width: 140px; vertical-align: top; }
+.matrix-cell { padding: 6px 8px; height: 80px; vertical-align: middle; }
 .cell-person {
   display: flex; align-items: center; justify-content: space-between; gap: 4px;
   padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid;
@@ -1022,35 +1025,30 @@ function buildMiniCal() {
 async function connectPCO() {
   setConnStatus('loading');
   try {
-    // Fetch service types
-    const stData = await pcoGet('/services/v2/service_types?per_page=100&order=name');
+    // 1. Fetch service types + production team in parallel — these are fast
+    const [stData] = await Promise.all([
+      pcoGet('/services/v2/service_types?per_page=100&order=name'),
+      loadProductionTeam(),
+    ]);
     if (!stData.data) throw new Error('Could not load service types');
     serviceTypes = stData.data.map(s => ({ id: s.id, name: s.attributes.name }));
 
-    // Fetch production team positions & people
-    await loadProductionTeam();
-
-    // Load plans for all service types (used for calendar/home — limit to 20 per ST)
-    await loadAllPlansForCalendar();
-
-    // Populate matrix dropdown
-    buildMatrixDropdown();
-
-    // Build home widgets
-    buildWeekServices();
-    buildGapsList();
-    buildMiniCal();
-    buildFullCalendar();
-
-    // Run sheet sidebar
-    buildRunsheetSidebar();
-
-    // Settings people list
-    buildSettingsPrimaryList();
-
+    // UI is usable now — show connected state and populate matrix dropdown
     connected = true;
     setConnStatus('connected');
+    buildMatrixDropdown();
+    buildSettingsPrimaryList();
     toast('Connected to Planning Center', 'success');
+
+    // 2. Background-load plans for home/calendar widgets (slow — don't block)
+    loadAllPlansForCalendar().then(() => {
+      buildWeekServices();
+      buildGapsList();
+      buildMiniCal();
+      buildFullCalendar();
+      buildRunsheetSidebar();
+    }).catch(e => console.warn('Background plan load error:', e));
+
   } catch (e) {
     console.warn('connectPCO error:', e);
     setConnStatus('error');
@@ -1320,10 +1318,10 @@ async function loadMatrix(stId) {
       console.warn('Could not load team people, using default:', e);
     }
 
-    // Load team members for each plan
+    // Load team members for each plan — all in parallel
     matrixMembers = {};
     matrixNeeded = {};
-    for (const plan of matrixPlans) {
+    await Promise.all(matrixPlans.map(async (plan) => {
       try {
         let members = [];
         let offset = 0;
@@ -1348,7 +1346,7 @@ async function loadMatrix(stId) {
         matrixMembers[plan.id] = [];
         matrixNeeded[plan.id] = [];
       }
-    }
+    }));
 
     renderMatrix(stId, teamId, positions, people);
   } catch (e) {
