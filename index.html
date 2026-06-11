@@ -271,21 +271,19 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--surface); font-size: 11px; font-weight: 600;
   color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
   white-space: nowrap; position: sticky; top: 0; z-index: 2;
-  min-width: 160px; width: 160px;
 }
 .matrix-table th.pos-header {
-  width: 120px; min-width: 120px; left: 0; z-index: 3;
-  background: var(--surface); font-family: var(--mono);
+  left: 0; z-index: 3; background: var(--surface); font-family: var(--mono);
 }
 .col-header { padding: 10px 12px; }
 .col-subhead { font-size: 10px; font-weight: 400; color: var(--muted2); margin-top: 2px; }
 .matrix-table td.pos-cell {
   background: var(--surface); position: sticky; left: 0; z-index: 1;
-  padding: 0 12px; white-space: nowrap; width: 120px; min-width: 120px; height: 96px;
+  padding: 0 12px; white-space: nowrap; height: 96px;
   font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted);
 }
 /* Each data cell — fixed size, scrolls with table */
-.matrix-cell { padding: 0; vertical-align: top; position: relative; height: 96px; width: 160px; min-width: 160px; }
+.matrix-cell { padding: 0; vertical-align: top; position: relative; height: 96px; }
 
 /* Full-cell person block (confirmed / pending / declined / draft) */
 .cell-person {
@@ -1496,7 +1494,9 @@ function renderMatrixAllSunday() {
   const positions = teamPositions;
   const people = teamPeople;
 
-  let html = '<div class="matrix-wrapper"><table class="matrix-table"><thead><tr>';
+  let html = '<div class="matrix-wrapper"><table class="matrix-table">';
+  html += '<colgroup><col style="width:120px"/>' + matrixPlans.map(() => '<col style="width:160px"/>').join('') + '</colgroup>';
+  html += '<thead><tr>';
   html += '<th class="pos-header"><div class="col-header">Position</div></th>';
 
   matrixPlans.forEach(plan => {
@@ -1538,7 +1538,9 @@ function renderMatrix(stId, teamId, positions, people) {
     return;
   }
 
-  let html = '<div class="matrix-wrapper"><table class="matrix-table"><thead><tr>';
+  let html = '<div class="matrix-wrapper"><table class="matrix-table">';
+  html += '<colgroup><col style="width:120px"/>' + matrixPlans.map(() => '<col style="width:160px"/>').join('') + '</colgroup>';
+  html += '<thead><tr>';
   html += '<th class="pos-header"><div class="col-header">Position</div></th>';
 
   matrixPlans.forEach(plan => {
