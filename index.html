@@ -1,0 +1,2297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<title>Production Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset & tokens ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0A0E17;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --border: #1E293B;
+  --border2: #263347;
+  --accent: #38BDF8;
+  --accent2: #22D3EE;
+  --accent-glow: rgba(56,189,248,.18);
+  --text: #F8FAFC;
+  --muted: #94A3B8;
+  --muted2: #64748B;
+  --green: #4ADE80;
+  --green-glow: rgba(74,222,128,.15);
+  --yellow: #FBBF24;
+  --yellow-glow: rgba(251,191,36,.15);
+  --red: #F87171;
+  --red-glow: rgba(248,113,113,.15);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font: 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --sidebar-w: 220px;
+  --topbar-h: 52px;
+}
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; overflow: hidden; }
+button { font-family: var(--font); cursor: pointer; border: none; background: none; color: inherit; }
+input, select, textarea { font-family: var(--font); font-size: 14px; }
+a { color: var(--accent); text-decoration: none; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── Login screen ───────────────────────────────────────────── */
+#login-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.login-card {
+  width: 340px; background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 40px 36px; text-align: center;
+}
+.login-logo {
+  width: 48px; height: 48px; border-radius: 10px; background: var(--accent-glow);
+  border: 1px solid var(--accent); display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px; font-size: 22px;
+}
+.login-card h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.login-card p { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+.login-card input {
+  width: 100%; background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 10px 14px; color: var(--text);
+  font-size: 14px; margin-bottom: 12px; outline: none; transition: border-color .2s;
+}
+.login-card input:focus { border-color: var(--accent); }
+.login-card .btn-primary { width: 100%; }
+.login-error { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 20px; }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; transition: all .15s; }
+.btn-primary { background: var(--accent); color: #0A0E17; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+.btn-ghost:hover { background: var(--surface2); color: var(--text); }
+.btn-danger { background: transparent; color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+.btn-danger:hover { background: var(--red-glow); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-icon { padding: 6px; border-radius: var(--radius-sm); color: var(--muted); }
+.btn-icon:hover { background: var(--surface2); color: var(--text); }
+
+/* ── App shell ───────────────────────────────────────────────── */
+#app { display: none; flex-direction: column; height: 100vh; }
+#app.visible { display: flex; }
+
+/* ── Top bar ─────────────────────────────────────────────────── */
+#topbar {
+  height: var(--topbar-h); flex-shrink: 0;
+  display: flex; align-items: center; gap: 0;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 0 16px; position: relative; z-index: 10;
+}
+.topbar-brand {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
+  color: var(--accent); white-space: nowrap; margin-right: 12px;
+}
+.topbar-brand .brand-icon {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: var(--accent-glow); border: 1px solid var(--accent);
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+#tab-bar { display: flex; align-items: center; gap: 2px; flex: 1; }
+.tab-btn {
+  height: 36px; padding: 0 14px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  transition: all .15s; white-space: nowrap; position: relative;
+}
+.tab-btn:hover { color: var(--text); background: var(--surface2); }
+.tab-btn.active { color: var(--accent); background: var(--accent-glow); }
+.tab-btn.active::after {
+  content: ''; position: absolute; bottom: -1px; left: 8px; right: 8px;
+  height: 2px; background: var(--accent); border-radius: 1px;
+}
+.tab-spacer { flex: 1; }
+#connection-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted); font-family: var(--mono);
+}
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted2); }
+.status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.error { background: var(--red); }
+
+/* ── Layout body ─────────────────────────────────────────────── */
+#layout-body { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w); flex-shrink: 0; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  transition: width .2s, padding .2s; overflow: hidden;
+}
+#sidebar.collapsed { width: 44px; }
+#sidebar-header {
+  height: 44px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border);
+}
+#sidebar-title { font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted); white-space: nowrap; overflow: hidden; }
+#sidebar-toggle { color: var(--muted); padding: 4px; border-radius: 4px; }
+#sidebar-toggle:hover { color: var(--text); background: var(--surface2); }
+#sidebar-content { flex: 1; overflow-y: auto; padding: 8px 0; }
+.sidebar-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  cursor: pointer; border-radius: 4px; margin: 0 6px;
+  font-size: 13px; color: var(--muted); white-space: nowrap; transition: all .15s;
+}
+.sidebar-item:hover { background: var(--surface2); color: var(--text); }
+.sidebar-item.active { background: var(--accent-glow); color: var(--accent); }
+.sidebar-item .avatar {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--surface2);
+  border: 1px solid var(--border2); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+}
+.sidebar-item.highlight .avatar { border-color: var(--accent); color: var(--accent); }
+#sidebar.collapsed .sidebar-item span { display: none; }
+#sidebar.collapsed #sidebar-title { display: none; }
+
+/* ── Tab panels ─────────────────────────────────────────────── */
+#tab-content { flex: 1; overflow: auto; padding: 24px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Section headers ─────────────────────────────────────────── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-title { font-size: 16px; font-weight: 600; }
+.section-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+/* ── Cards / surfaces ─────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+}
+.card-sm { padding: 14px 16px; }
+
+/* ── Home tab ────────────────────────────────────────────────── */
+#home-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+}
+/* Clock widget */
+#clock-widget { grid-column: 1; grid-row: 1; }
+#clock-display {
+  font-family: var(--mono); font-size: 42px; font-weight: 600;
+  color: var(--accent); letter-spacing: -1px; line-height: 1;
+  margin-bottom: 4px;
+}
+#clock-display .secs { font-size: 28px; color: var(--muted); }
+#clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+/* Mini calendar */
+#cal-widget { grid-column: 2; grid-row: 1; }
+.mini-cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px; font-size: 13px; font-weight: 600;
+}
+.mini-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-dow { text-align: center; font-size: 10px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; padding: 2px 0; }
+.cal-day {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; border-radius: 4px;
+  color: var(--muted); position: relative; cursor: default;
+}
+.cal-day.other-month { color: var(--muted2); opacity: .4; }
+.cal-day.today { background: var(--accent-glow); color: var(--accent);
+  border: 1px solid var(--accent); font-weight: 600; }
+.cal-day.has-service::after {
+  content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 4px; border-radius: 50%; background: var(--accent2);
+}
+.cal-day.today.has-service::after { background: var(--bg); }
+
+/* This week */
+#week-widget { grid-column: 3; grid-row: 1; }
+.week-service-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.week-service-row:last-child { border-bottom: none; }
+.week-date { font-family: var(--mono); font-size: 11px; color: var(--muted);
+  min-width: 50px; padding-top: 2px; }
+.week-service-name { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.week-positions { display: flex; flex-wrap: wrap; gap: 4px; }
+.pos-pill {
+  font-size: 11px; padding: 2px 7px; border-radius: 10px;
+  font-family: var(--mono); white-space: nowrap;
+}
+.pos-pill.confirmed { background: var(--green-glow); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+.pos-pill.pending { background: var(--yellow-glow); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+.pos-pill.declined { background: var(--red-glow); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+.pos-pill.empty { background: var(--surface2); color: var(--muted2); border: 1px solid var(--border2); }
+
+/* Gaps widget */
+#gaps-widget { grid-column: 1 / 4; grid-row: 2; }
+.gap-row {
+  display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  border-radius: var(--radius-sm); margin-bottom: 4px;
+  background: var(--surface2); font-size: 13px;
+}
+.gap-date { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 120px; }
+.gap-service { flex: 1; font-weight: 500; }
+.gap-positions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Matrix tab ──────────────────────────────────────────────── */
+#matrix-controls {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+}
+#matrix-controls select {
+  background: var(--surface); border: 1px solid var(--border2); color: var(--text);
+  padding: 7px 12px; border-radius: var(--radius-sm); outline: none; cursor: pointer;
+}
+#matrix-controls select:focus { border-color: var(--accent); }
+.matrix-wrapper { overflow: auto; }
+.matrix-table { border-collapse: collapse; width: max-content; }
+.matrix-table th, .matrix-table td {
+  border: 1px solid var(--border); padding: 0;
+}
+.matrix-table th {
+  background: var(--surface); font-size: 11px; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+  white-space: nowrap; min-width: 140px; position: sticky; top: 0; z-index: 2;
+}
+.matrix-table th.pos-header {
+  min-width: 110px; left: 0; z-index: 3; background: var(--surface);
+  font-family: var(--mono);
+}
+.col-header { padding: 8px 12px; }
+.col-subhead { font-size: 10px; font-weight: 400; color: var(--muted2); margin-top: 2px; }
+.matrix-table td.pos-cell {
+  background: var(--surface); position: sticky; left: 0; z-index: 1;
+  padding: 0 12px; height: 56px; white-space: nowrap;
+  font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.matrix-cell { padding: 6px 8px; height: 56px; min-width: 140px; vertical-align: top; }
+.cell-person {
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid;
+  font-size: 12px; font-weight: 500; height: 40px;
+}
+.cell-person.confirmed { background: var(--green-glow); border-color: rgba(74,222,128,.3); color: var(--green); }
+.cell-person.pending   { background: var(--yellow-glow); border-color: rgba(251,191,36,.3); color: var(--yellow); }
+.cell-person.declined  { background: var(--red-glow); border-color: rgba(248,113,113,.3); color: var(--red); }
+.cell-person.draft     { background: var(--accent-glow); border-color: rgba(56,189,248,.4); color: var(--accent); }
+.cell-person-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-remove { opacity: .6; font-size: 14px; padding: 0 2px; line-height: 1; }
+.cell-remove:hover { opacity: 1; color: var(--red); }
+.cell-assign {
+  display: flex; align-items: center; gap: 4px; height: 40px;
+}
+.cell-assign select {
+  flex: 1; background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); color: var(--muted); padding: 4px 6px;
+  font-size: 11px; outline: none; height: 32px; cursor: pointer;
+}
+.cell-assign select:focus { border-color: var(--accent); }
+.cell-assign .btn-draft {
+  height: 32px; padding: 0 8px; border-radius: var(--radius-sm);
+  background: var(--accent-glow); color: var(--accent); font-size: 11px;
+  border: 1px solid rgba(56,189,248,.3); white-space: nowrap;
+}
+.cell-assign .btn-draft:hover { background: rgba(56,189,248,.25); }
+.cell-send {
+  margin-top: 3px; display: flex; gap: 3px;
+}
+.btn-send-cell {
+  font-size: 10px; padding: 2px 8px; border-radius: 3px;
+  background: var(--accent); color: #0A0E17; font-weight: 600;
+}
+.btn-send-cell:hover { background: var(--accent2); }
+.col-send-all {
+  display: flex; justify-content: center; padding: 4px 8px;
+}
+.btn-send-all {
+  font-size: 11px; padding: 4px 12px; border-radius: var(--radius-sm);
+  background: var(--accent-glow); color: var(--accent);
+  border: 1px solid rgba(56,189,248,.3); font-weight: 600;
+}
+.btn-send-all:hover { background: rgba(56,189,248,.3); }
+
+/* Loading / empty states */
+.state-msg { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border2);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── People sidebar items with highlight ─────────────────────── */
+.person-highlight-all .sidebar-item { opacity: .4; }
+.person-highlight-all .sidebar-item.highlight { opacity: 1; }
+
+/* ── Departments tab ─────────────────────────────────────────── */
+.dept-person-cal { display: grid; gap: 16px; }
+.dept-service-row {
+  background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 14px;
+  display: flex; align-items: center; gap: 12px; font-size: 13px;
+}
+.dept-service-date { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 100px; }
+.dept-service-name { flex: 1; font-weight: 500; }
+
+/* ── Run Sheet tab ─────────────────────────────────────────────── */
+.runsheet-item {
+  display: flex; align-items: flex-start; gap: 14px; padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.runsheet-seq {
+  font-family: var(--mono); font-size: 11px; color: var(--muted2);
+  min-width: 30px; padding-top: 2px;
+}
+.runsheet-type { font-size: 11px; color: var(--muted); min-width: 80px; padding-top: 2px; }
+.runsheet-title { font-weight: 500; font-size: 13px; }
+.runsheet-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* ── Calendar tab ─────────────────────────────────────────────── */
+#full-cal-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+#full-cal-title { font-size: 16px; font-weight: 600; font-family: var(--mono); }
+.full-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 8px; }
+.full-cal-dow {
+  text-align: center; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; padding: 6px 0;
+}
+.full-cal-day {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); min-height: 80px; padding: 6px;
+  font-family: var(--mono);
+}
+.full-cal-day.today { border-color: var(--accent); }
+.full-cal-day.other-month { opacity: .4; }
+.full-cal-day-num { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.full-cal-day.today .full-cal-day-num { color: var(--accent); font-weight: 600; }
+.cal-event {
+  font-size: 10px; padding: 2px 5px; border-radius: 3px; margin-bottom: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: var(--accent-glow); color: var(--accent2); border: 1px solid rgba(56,189,248,.2);
+  cursor: default;
+}
+
+/* ── Inventory tab ─────────────────────────────────────────────── */
+#inventory-controls {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+}
+#inv-search {
+  background: var(--surface); border: 1px solid var(--border2); color: var(--text);
+  padding: 8px 12px; border-radius: var(--radius-sm); outline: none; width: 220px;
+}
+#inv-search:focus { border-color: var(--accent); }
+.inv-category-block { margin-bottom: 28px; }
+.inv-category-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.inv-category-label {
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--accent);
+}
+.inv-category-count { font-size: 11px; color: var(--muted); }
+.inv-table { width: 100%; border-collapse: collapse; }
+.inv-table th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; padding: 6px 10px;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.inv-table td {
+  padding: 9px 10px; border-bottom: 1px solid var(--border);
+  font-size: 13px; vertical-align: top;
+}
+.inv-table td.notes-cell { max-width: 240px; word-break: break-word; white-space: pre-wrap; }
+.inv-table tr:hover td { background: var(--surface2); }
+.inv-table .actions { display: flex; gap: 4px; }
+
+/* ── Inventory modal ─────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius); width: 520px; max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 60px); display: flex; flex-direction: column;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-body { padding: 20px; overflow-y: auto; display: grid; gap: 14px; }
+.modal-footer {
+  padding: 14px 20px; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-label { font-size: 12px; font-weight: 500; color: var(--muted); }
+.form-input, .form-select, .form-textarea {
+  background: var(--bg); border: 1px solid var(--border2); color: var(--text);
+  padding: 8px 12px; border-radius: var(--radius-sm); outline: none;
+  font-size: 13px; transition: border-color .2s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+.form-textarea { resize: vertical; min-height: 80px; }
+.form-select { cursor: pointer; }
+
+/* ── Confirm dialog ──────────────────────────────────────────── */
+.confirm-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  display: flex; align-items: center; justify-content: center; z-index: 200;
+}
+.confirm-overlay.hidden { display: none; }
+.confirm-box {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius); width: 380px; padding: 24px; text-align: center;
+}
+.confirm-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.confirm-box p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+.confirm-actions { display: flex; gap: 10px; justify-content: center; }
+
+/* ── Settings tab ─────────────────────────────────────────────── */
+.settings-section { max-width: 480px; }
+.settings-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.settings-label { font-size: 12px; font-weight: 500; color: var(--muted); }
+.settings-input {
+  background: var(--bg); border: 1px solid var(--border2); color: var(--text);
+  padding: 9px 12px; border-radius: var(--radius-sm); outline: none; font-family: var(--mono); font-size: 13px;
+}
+.settings-input:focus { border-color: var(--accent); }
+.settings-hint { font-size: 11px; color: var(--muted2); }
+.connect-status-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+
+/* ── Toasts ──────────────────────────────────────────────────── */
+#toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 300; }
+.toast {
+  padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  min-width: 220px; animation: toast-in .2s ease; border: 1px solid;
+  display: flex; align-items: center; gap: 8px;
+}
+.toast.success { background: rgba(10,14,23,.95); border-color: rgba(74,222,128,.4); color: var(--green); }
+.toast.error   { background: rgba(10,14,23,.95); border-color: rgba(248,113,113,.4); color: var(--red); }
+.toast.info    { background: rgba(10,14,23,.95); border-color: rgba(56,189,248,.4); color: var(--accent); }
+@keyframes toast-in { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: none; } }
+
+/* ── Auto-roster settings popover ─────────────────────────────── */
+.auto-cfg-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tag {
+  font-family: var(--mono); font-size: 11px; padding: 3px 9px; border-radius: 10px;
+  background: var(--surface2); color: var(--muted); border: 1px solid var(--border2);
+  cursor: pointer;
+}
+.tag.primary { background: var(--accent-glow); color: var(--accent); border-color: rgba(56,189,248,.4); }
+.tag:hover { border-color: var(--accent); }
+
+/* Primary badge in dropdown */
+option.primary-person::before { content: '★ '; }
+</style>
+</head>
+<body>
+
+<!-- ── Login ──────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🎛️</div>
+    <h1>Production Dashboard</h1>
+    <p>Enter your password to continue</p>
+    <input type="password" id="login-pw" placeholder="Password" autocomplete="current-password"/>
+    <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── App ───────────────────────────────────────────────────── -->
+<div id="app">
+  <!-- Top bar -->
+  <div id="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon">🎛️</div>
+      <span>PROD DASH</span>
+    </div>
+    <div id="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('home')" data-tab="home">Home</button>
+      <button class="tab-btn" onclick="switchTab('matrix')" data-tab="matrix">Matrix</button>
+      <button class="tab-btn" onclick="switchTab('departments')" data-tab="departments">Departments</button>
+      <button class="tab-btn" onclick="switchTab('runsheet')" data-tab="runsheet">Run Sheet</button>
+      <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
+      <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
+      <div class="tab-spacer"></div>
+      <div id="connection-status">
+        <div class="status-dot" id="conn-dot"></div>
+        <span id="conn-label">Not connected</span>
+      </div>
+      <button class="tab-btn" onclick="switchTab('settings')" data-tab="settings" style="margin-left:8px">⚙ Settings</button>
+    </div>
+  </div>
+
+  <!-- Layout body -->
+  <div id="layout-body">
+    <!-- Sidebar -->
+    <div id="sidebar" style="display:none">
+      <div id="sidebar-header">
+        <span id="sidebar-title">People</span>
+        <button id="sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar">◀</button>
+      </div>
+      <div id="sidebar-content"></div>
+    </div>
+
+    <!-- Tab content -->
+    <div id="tab-content">
+
+      <!-- ── Home ──────────────────────────────────────────── -->
+      <div class="tab-panel active" id="panel-home">
+        <div id="home-grid">
+          <!-- Clock -->
+          <div class="card" id="clock-widget">
+            <div class="section-sub" style="margin-bottom:10px">LIVE CLOCK</div>
+            <div id="clock-display">
+              <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
+            </div>
+            <div id="clock-date">—</div>
+          </div>
+          <!-- Mini calendar -->
+          <div class="card" id="cal-widget">
+            <div class="section-sub" style="margin-bottom:10px">THIS MONTH</div>
+            <div id="mini-cal"></div>
+          </div>
+          <!-- This week -->
+          <div class="card" id="week-widget">
+            <div class="section-sub" style="margin-bottom:10px">THIS WEEK'S SERVICES</div>
+            <div id="week-services"><div class="state-msg">Loading…</div></div>
+          </div>
+          <!-- Gaps -->
+          <div class="card" id="gaps-widget">
+            <div class="section-header">
+              <div>
+                <div class="section-title">Upcoming Roster Gaps</div>
+                <div class="section-sub">Empty production positions in the next 4 weeks</div>
+              </div>
+            </div>
+            <div id="gaps-list"><div class="state-msg">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Matrix ─────────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-matrix">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Roster Matrix</div>
+            <div class="section-sub">Upcoming services × production positions</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="openAutoRosterConfig()">⚡ Auto-Roster Config</button>
+            <button class="btn btn-ghost btn-sm" onclick="runAutoRoster()">⚡ Auto-Roster</button>
+            <button class="btn btn-primary btn-sm" onclick="sendAllDrafts()">▲ Send All Drafts</button>
+          </div>
+        </div>
+        <div id="matrix-controls">
+          <label style="font-size:12px;color:var(--muted)">Service type:</label>
+          <select id="matrix-st-select" onchange="onMatrixServiceTypeChange()">
+            <option value="">Loading…</option>
+          </select>
+          <label style="font-size:12px;color:var(--muted)">Plans:</label>
+          <select id="matrix-plan-count">
+            <option value="6">6 plans</option>
+            <option value="10" selected>10 plans</option>
+            <option value="20">20 plans</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="refreshMatrix()">↺ Refresh</button>
+        </div>
+        <div id="matrix-container">
+          <div class="state-msg">Select a service type to load the matrix.</div>
+        </div>
+      </div>
+
+      <!-- ── Departments ────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-departments">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Departments</div>
+            <div class="section-sub" id="dept-person-name">Select a person from the sidebar</div>
+          </div>
+        </div>
+        <div id="dept-content"><div class="state-msg">Select a person from the sidebar to view their schedule.</div></div>
+      </div>
+
+      <!-- ── Run Sheet ──────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-runsheet">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Run Sheet</div>
+            <div class="section-sub" id="runsheet-plan-name">Select a service from the sidebar</div>
+          </div>
+        </div>
+        <div id="runsheet-content"><div class="state-msg">Select a service from the sidebar to load the run sheet.</div></div>
+      </div>
+
+      <!-- ── Calendar ──────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-calendar">
+        <div id="full-cal-header">
+          <button class="btn btn-ghost btn-sm" onclick="fullCalPrev()">◀</button>
+          <div id="full-cal-title">—</div>
+          <button class="btn btn-ghost btn-sm" onclick="fullCalNext()">▶</button>
+          <button class="btn btn-ghost btn-sm" onclick="fullCalToday()">Today</button>
+        </div>
+        <div class="full-cal-grid" id="full-cal-dow"></div>
+        <div class="full-cal-grid" id="full-cal-grid"></div>
+      </div>
+
+      <!-- ── Inventory ──────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-inventory">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Gear Inventory</div>
+            <div class="section-sub">Managed in Airtable</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="exportInvCSV()">↓ CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="openInvModal(null)">+ Add Item</button>
+          </div>
+        </div>
+        <div id="inventory-controls">
+          <input type="text" id="inv-search" placeholder="Search inventory…" oninput="renderInventory()"/>
+          <select id="inv-cat-filter" onchange="renderInventory()" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:4px;outline:none;">
+            <option value="">All categories</option>
+            <option>Audio</option><option>Lighting</option><option>Video</option>
+            <option>Computers</option><option>Network</option><option>Rigging</option>
+          </select>
+        </div>
+        <div id="inventory-list"><div class="state-msg">Loading inventory…</div></div>
+      </div>
+
+      <!-- ── Settings ──────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-settings">
+        <div class="section-header"><div class="section-title">Settings</div></div>
+        <div class="settings-section">
+          <div class="card">
+            <div style="font-size:13px;font-weight:600;margin-bottom:16px">Planning Center Connection</div>
+            <div class="settings-row">
+              <div class="settings-label">App ID</div>
+              <input class="settings-input" id="settings-app-id" type="text" placeholder="app_id"/>
+            </div>
+            <div class="settings-row">
+              <div class="settings-label">Secret / Token</div>
+              <input class="settings-input" id="settings-secret" type="password" placeholder="pco_pat_…"/>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+              <button class="btn btn-primary btn-sm" onclick="connectFromSettings()">Connect</button>
+              <div id="settings-connect-status" style="font-size:12px;color:var(--muted)"></div>
+            </div>
+            <div style="margin-top:14px;font-size:12px;color:var(--muted2)">
+              Credentials are loaded from the server environment (Railway vars).
+              You can override them here for this session.
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:16px">Primary Roster People</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:10px">
+              Primary people are preferred in Auto-Roster. Click a name to toggle.
+            </div>
+            <div id="primary-people-list" class="tag-list"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-content -->
+  </div><!-- /layout-body -->
+</div><!-- /app -->
+
+<!-- ── Toast container ─────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── Inventory modal ─────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="inv-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="inv-modal-title">Add Item</div>
+      <button class="btn btn-icon" onclick="closeInvModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Item Name *</label>
+          <input class="form-input" id="inv-f-item" type="text" placeholder="e.g. Shure SM58"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Brand</label>
+          <input class="form-input" id="inv-f-brand" type="text" placeholder="e.g. Shure"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select class="form-select" id="inv-f-category">
+            <option value="">Select…</option>
+            <option>Audio</option><option>Lighting</option><option>Video</option>
+            <option>Computers</option><option>Network</option><option>Rigging</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity</label>
+          <input class="form-input" id="inv-f-quantity" type="number" min="1" value="1"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Purchase Value ($)</label>
+          <input class="form-input" id="inv-f-value" type="number" min="0" placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Retail Value ($)</label>
+          <input class="form-input" id="inv-f-retail" type="number" min="0" placeholder="0"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <select class="form-select" id="inv-f-location">
+          <option value="">Select…</option>
+          <option>Stage</option><option>Tech Desk</option><option>Side Stage Rack</option>
+          <option>Storage Room</option><option>Production Office</option>
+          <option>Hospitality Room</option><option>SPO</option>
+          <option>Kids Room 1</option><option>Kids Room 2</option><option>Kids Room 3</option>
+          <option>Foyer</option><option>Cafe</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-textarea" id="inv-f-notes" placeholder="Any notes about condition, location details, etc."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeInvModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveInvItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm dialog ──────────────────────────────────────────── -->
+<div class="confirm-overlay hidden" id="confirm-overlay">
+  <div class="confirm-box">
+    <h3 id="confirm-title">Confirm</h3>
+    <p id="confirm-body">Are you sure?</p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="confirmCancel()">Cancel</button>
+      <button class="btn btn-primary" id="confirm-ok-btn" onclick="confirmOk()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Auto-roster config modal ───────────────────────────────── -->
+<div class="modal-overlay hidden" id="auto-cfg-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Auto-Roster Config</div>
+      <button class="btn btn-icon" onclick="closeAutoRosterConfig()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:4px">
+        Mark people as "primary" — they will be preferred when auto-rostering empty slots.
+        Primary = leaders / 2IC who should be scheduled first.
+      </div>
+      <div id="auto-cfg-people" class="tag-list" style="margin-top:12px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeAutoRosterConfig()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+let pcoAppId = '';
+let pcoSecret = '';
+let pcoAuth = '';       // base64(appId:secret)
+let connected = false;
+
+// PCO data
+let serviceTypes = [];       // [{id, name}]
+let allPlans = {};            // {stId: [plan,...]}
+let teamPositions = [];      // [{id, name}]
+let teamPeople = [];          // [{id, name, firstName, lastName}]
+let personTeamPosMap = {};   // {personId: positionName}
+
+// Matrix state
+let matrixPlans = [];
+let matrixMembers = {};      // {planId: [teamMember,...]}
+let matrixNeeded = {};       // {planId: [neededPos,...]}
+let matrixDrafts = {};       // {`${planId}-${posName}`: {personId, personName}}
+let primaryPeople = [];      // [personId, ...]  (localStorage)
+
+// Inventory
+let inventoryItems = [];
+
+// Full calendar
+let fullCalYear = new Date().getFullYear();
+let fullCalMonth = new Date().getMonth();
+let allCalEvents = [];       // [{date:'YYYY-MM-DD', name, stId}]
+
+// Confirm dialog cb
+let confirmCallback = null;
+
+// Highlight
+let highlightedPersonId = null;
+
+// Clock
+let clockInterval = null;
+
+// ═══════════════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════════════
+function pcoGet(path) {
+  return fetch(`/pco?path=${encodeURIComponent(path)}`, {
+    headers: { 'x-pco-auth': pcoAuth }
+  }).then(r => r.json());
+}
+
+function pcoPost(path, body) {
+  return fetch(`/pco-post?path=${encodeURIComponent(path)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-pco-auth': pcoAuth },
+    body: JSON.stringify(body)
+  }).then(r => r.json());
+}
+
+function pcoDelete(path) {
+  return fetch(`/pco-delete?path=${encodeURIComponent(path)}`, {
+    method: 'DELETE',
+    headers: { 'x-pco-auth': pcoAuth }
+  });
+}
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function showConfirm(title, body, okLabel, okClass) {
+  return new Promise(resolve => {
+    confirmCallback = resolve;
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-body').textContent = body;
+    const okBtn = document.getElementById('confirm-ok-btn');
+    okBtn.textContent = okLabel || 'Confirm';
+    okBtn.className = `btn ${okClass || 'btn-primary'}`;
+    document.getElementById('confirm-overlay').classList.remove('hidden');
+  });
+}
+function confirmOk() {
+  document.getElementById('confirm-overlay').classList.add('hidden');
+  if (confirmCallback) confirmCallback(true);
+  confirmCallback = null;
+}
+function confirmCancel() {
+  document.getElementById('confirm-overlay').classList.add('hidden');
+  if (confirmCallback) confirmCallback(false);
+  confirmCallback = null;
+}
+
+function fmtCurrency(n) {
+  if (!n && n !== 0) return '—';
+  return '$' + Number(n).toLocaleString();
+}
+
+function statusLabel(s) {
+  if (s === 'C') return 'confirmed';
+  if (s === 'D') return 'declined';
+  return 'pending';
+}
+
+function initials(name) {
+  const parts = (name || '').split(' ');
+  return parts.map(p => p[0] || '').join('').toUpperCase().slice(0, 2);
+}
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  LOGIN
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('login-pw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogin() {
+  const pw = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      pcoAppId = data.appId || '';
+      pcoSecret = data.secret || '';
+      pcoAuth = btoa(`${pcoAppId}:${pcoSecret}`);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').classList.add('visible');
+      startClock();
+      buildMiniCal();
+      loadPrimaryPeople();
+      initSettings();
+      if (pcoAppId && pcoSecret) {
+        await connectPCO();
+      }
+      loadInventory();
+    } else {
+      errEl.textContent = 'Incorrect password.';
+    }
+  } catch (e) {
+    console.warn('Login error:', e);
+    errEl.textContent = 'Connection error.';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CLOCK
+// ═══════════════════════════════════════════════════════════════════
+function startClock() {
+  const tick = () => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    const ss = String(now.getSeconds()).padStart(2,'0');
+    document.getElementById('clock-hm').textContent = `${hh}:${mm}`;
+    document.getElementById('clock-s').textContent = ss;
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    document.getElementById('clock-date').textContent =
+      `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  };
+  tick();
+  clockInterval = setInterval(tick, 1000);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MINI CALENDAR
+// ═══════════════════════════════════════════════════════════════════
+function buildMiniCal() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const first = new Date(y, m, 1).getDay();
+  const days = new Date(y, m+1, 0).getDate();
+
+  let html = `<div class="mini-cal-header"><span>${months[m]} ${y}</span></div>
+  <div class="mini-cal-grid">
+    <div class="cal-dow">Su</div><div class="cal-dow">Mo</div><div class="cal-dow">Tu</div>
+    <div class="cal-dow">We</div><div class="cal-dow">Th</div><div class="cal-dow">Fr</div>
+    <div class="cal-dow">Sa</div>`;
+  for (let i = 0; i < first; i++) html += '<div class="cal-day other-month"></div>';
+  for (let d = 1; d <= days; d++) {
+    const isToday = d === now.getDate();
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const hasService = allCalEvents.some(e => e.date === dateStr);
+    html += `<div class="cal-day${isToday?' today':''}${hasService?' has-service':''}">${d}</div>`;
+  }
+  html += '</div>';
+  document.getElementById('mini-cal').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PCO CONNECTION
+// ═══════════════════════════════════════════════════════════════════
+async function connectPCO() {
+  setConnStatus('loading');
+  try {
+    // Fetch service types
+    const stData = await pcoGet('/services/v2/service_types?per_page=100&order=name');
+    if (!stData.data) throw new Error('Could not load service types');
+    serviceTypes = stData.data.map(s => ({ id: s.id, name: s.attributes.name }));
+
+    // Fetch production team positions & people
+    await loadProductionTeam();
+
+    // Load plans for all service types (used for calendar/home — limit to 20 per ST)
+    await loadAllPlansForCalendar();
+
+    // Populate matrix dropdown
+    buildMatrixDropdown();
+
+    // Build home widgets
+    buildWeekServices();
+    buildGapsList();
+    buildMiniCal();
+    buildFullCalendar();
+
+    // Run sheet sidebar
+    buildRunsheetSidebar();
+
+    // Settings people list
+    buildSettingsPrimaryList();
+
+    connected = true;
+    setConnStatus('connected');
+    toast('Connected to Planning Center', 'success');
+  } catch (e) {
+    console.warn('connectPCO error:', e);
+    setConnStatus('error');
+    toast('Failed to connect: ' + e.message, 'error');
+  }
+}
+
+function setConnStatus(state) {
+  const dot = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  if (state === 'connected') {
+    dot.className = 'status-dot connected';
+    label.textContent = 'Connected';
+  } else if (state === 'error') {
+    dot.className = 'status-dot error';
+    label.textContent = 'Error';
+  } else {
+    dot.className = 'status-dot';
+    label.textContent = 'Connecting…';
+  }
+}
+
+async function loadProductionTeam() {
+  // Positions
+  const posData = await pcoGet('/services/v2/teams/5764089/team_positions?per_page=100');
+  teamPositions = (posData.data || []).map(p => ({ id: p.id, name: p.attributes.name }));
+
+  // People
+  const peopleData = await pcoGet('/services/v2/teams/5764089/people?per_page=100');
+  teamPeople = (peopleData.data || []).map(p => ({
+    id: p.id,
+    name: `${p.attributes.first_name} ${p.attributes.last_name}`.trim(),
+    firstName: p.attributes.first_name,
+    lastName: p.attributes.last_name,
+  }));
+
+  // Person→position assignments
+  const assignData = await pcoGet('/services/v2/teams/5764089/person_team_position_assignments?per_page=100&include=team_position');
+  const positionsIncluded = (assignData.included || []).reduce((acc, inc) => {
+    if (inc.type === 'TeamPosition') acc[inc.id] = inc.attributes.name;
+    return acc;
+  }, {});
+  personTeamPosMap = {};
+  (assignData.data || []).forEach(a => {
+    const personId = a.relationships.person.data.id;
+    const tpId = a.relationships.team_position.data.id;
+    personTeamPosMap[personId] = positionsIncluded[tpId] || '';
+  });
+
+  buildSidebarPeople();
+}
+
+function buildSidebarPeople() {
+  const content = document.getElementById('sidebar-content');
+  content.innerHTML = teamPeople.map(p => `
+    <div class="sidebar-item" id="si-${p.id}" onclick="selectPerson('${p.id}','${esc(p.name)}')">
+      <div class="avatar">${initials(p.name)}</div>
+      <span>${esc(p.name)}</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PLANS — load for calendar/home
+// ═══════════════════════════════════════════════════════════════════
+async function loadAllPlansForCalendar() {
+  allCalEvents = [];
+  // Load up to 20 plans per service type, but do them sequentially to avoid rate limits
+  for (const st of serviceTypes) {
+    try {
+      const data = await pcoGet(`/services/v2/service_types/${st.id}/plans?filter=future&per_page=20&order=sort_date`);
+      const plans = data.data || [];
+      allPlans[st.id] = plans;
+      plans.forEach(p => {
+        const sd = (p.attributes.sort_date || '').slice(0, 10);
+        if (sd) allCalEvents.push({ date: sd, name: st.name, stId: st.id, plan: p });
+      });
+    } catch (e) {
+      console.warn(`Failed to load plans for ${st.name}:`, e);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  HOME — week services
+// ═══════════════════════════════════════════════════════════════════
+async function buildWeekServices() {
+  const container = document.getElementById('week-services');
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - now.getDay() + 1);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const mondayStr = monday.toISOString().slice(0, 10);
+  const sundayStr = sunday.toISOString().slice(0, 10);
+
+  // Find all events this week
+  const thisWeek = allCalEvents.filter(e => e.date >= mondayStr && e.date <= sundayStr);
+
+  if (!thisWeek.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No services this week.</div>';
+    return;
+  }
+
+  // For each, load team members (limit to production team)
+  let html = '';
+  for (const ev of thisWeek) {
+    const plan = ev.plan;
+    const stId = ev.stId;
+    try {
+      const membersData = await pcoGet(
+        `/services/v2/service_types/${stId}/plans/${plan.id}/team_members?per_page=100`
+      );
+      const members = membersData.data || [];
+      const prodMembers = members.filter(m => m.attributes.team_name === 'Production' ||
+        teamPeople.some(tp => tp.id === m.relationships.person.data.id));
+
+      // Build position pills
+      const posMap = {};
+      prodMembers.forEach(m => {
+        const pos = m.attributes.team_position_name || 'Unknown';
+        if (!posMap[pos]) posMap[pos] = [];
+        posMap[pos].push({ name: m.attributes.name, status: m.attributes.status });
+      });
+
+      let pillsHtml = teamPositions.map(pos => {
+        const entries = posMap[pos.name] || [];
+        if (entries.length === 0) {
+          return `<span class="pos-pill empty">${esc(pos.name)}: —</span>`;
+        }
+        return entries.map(e =>
+          `<span class="pos-pill ${statusLabel(e.status)}">${esc(pos.name)}: ${esc(e.name)}</span>`
+        ).join('');
+      }).join('');
+
+      if (!pillsHtml) pillsHtml = '<span class="pos-pill empty">No positions</span>';
+
+      html += `
+        <div class="week-service-row">
+          <div class="week-date">${ev.date.slice(5).replace('-','/')}</div>
+          <div>
+            <div class="week-service-name">${esc(ev.name)}</div>
+            <div class="week-positions">${pillsHtml}</div>
+          </div>
+        </div>`;
+    } catch (e) {
+      console.warn('Week service load error:', e);
+    }
+  }
+  container.innerHTML = html || '<div style="color:var(--muted);font-size:13px">No data.</div>';
+}
+
+// ─── Gaps list ────────────────────────────────────────────────────
+async function buildGapsList() {
+  const container = document.getElementById('gaps-list');
+  const now = new Date();
+  const fourWeeks = new Date(now);
+  fourWeeks.setDate(now.getDate() + 28);
+  const nowStr = now.toISOString().slice(0, 10);
+  const fwStr = fourWeeks.toISOString().slice(0, 10);
+
+  const upcoming = allCalEvents.filter(e => e.date >= nowStr && e.date <= fwStr);
+
+  if (!upcoming.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No upcoming services found.</div>';
+    return;
+  }
+
+  let gapRows = [];
+  for (const ev of upcoming) {
+    try {
+      const data = await pcoGet(
+        `/services/v2/service_types/${ev.stId}/plans/${ev.plan.id}/needed_positions?per_page=100`
+      );
+      const needed = data.data || [];
+      if (needed.length > 0) {
+        gapRows.push({ ev, needed });
+      }
+    } catch (e) {
+      console.warn('Gaps load error:', e);
+    }
+  }
+
+  if (!gapRows.length) {
+    container.innerHTML = '<div style="color:var(--green);font-size:13px">✓ No gaps found in the next 4 weeks!</div>';
+    return;
+  }
+
+  container.innerHTML = gapRows.map(({ ev, needed }) => `
+    <div class="gap-row">
+      <div class="gap-date">${ev.date} · ${esc(ev.name)}</div>
+      <div class="gap-positions">
+        ${needed.map(n => `<span class="pos-pill empty">${esc(n.attributes.team_position_name)}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MATRIX
+// ═══════════════════════════════════════════════════════════════════
+function buildMatrixDropdown() {
+  const sel = document.getElementById('matrix-st-select');
+  sel.innerHTML = '<option value="">— Select service type —</option>' +
+    serviceTypes.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+}
+
+async function onMatrixServiceTypeChange() {
+  const stId = document.getElementById('matrix-st-select').value;
+  if (!stId) {
+    document.getElementById('matrix-container').innerHTML =
+      '<div class="state-msg">Select a service type to load the matrix.</div>';
+    return;
+  }
+  await loadMatrix(stId);
+}
+
+async function refreshMatrix() {
+  const stId = document.getElementById('matrix-st-select').value;
+  if (!stId) return;
+  await loadMatrix(stId);
+}
+
+async function loadMatrix(stId) {
+  const container = document.getElementById('matrix-container');
+  container.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading matrix…</div>';
+  matrixDrafts = {};
+
+  try {
+    const count = parseInt(document.getElementById('matrix-plan-count').value) || 10;
+    const plansData = await pcoGet(
+      `/services/v2/service_types/${stId}/plans?filter=future&per_page=${count}&order=sort_date`
+    );
+    matrixPlans = plansData.data || [];
+
+    // Find the production team for this service type
+    const teamsData = await pcoGet(`/services/v2/service_types/${stId}/teams?per_page=100`);
+    const teams = teamsData.data || [];
+    const prodTeam = teams.find(t =>
+      (t.attributes.name || '').toLowerCase().includes('production')
+    ) || { id: '5764089' };
+    const teamId = prodTeam.id;
+
+    // Load positions for this team (may differ from default)
+    let positions = teamPositions; // default
+    try {
+      const posData = await pcoGet(`/services/v2/teams/${teamId}/team_positions?per_page=100`);
+      if (posData.data && posData.data.length > 0) {
+        positions = posData.data.map(p => ({ id: p.id, name: p.attributes.name }));
+      }
+    } catch (e) {
+      console.warn('Could not load team positions, using default:', e);
+    }
+
+    // Load people for this team
+    let people = teamPeople;
+    try {
+      const pplData = await pcoGet(`/services/v2/teams/${teamId}/people?per_page=100`);
+      if (pplData.data && pplData.data.length > 0) {
+        people = pplData.data.map(p => ({
+          id: p.id,
+          name: `${p.attributes.first_name} ${p.attributes.last_name}`.trim(),
+        }));
+      }
+    } catch (e) {
+      console.warn('Could not load team people, using default:', e);
+    }
+
+    // Load team members for each plan
+    matrixMembers = {};
+    matrixNeeded = {};
+    for (const plan of matrixPlans) {
+      try {
+        let members = [];
+        let offset = 0;
+        while (true) {
+          const mData = await pcoGet(
+            `/services/v2/service_types/${stId}/plans/${plan.id}/team_members?per_page=100${offset ? `&offset=${offset}` : ''}`
+          );
+          members = members.concat(mData.data || []);
+          if (mData.meta && mData.meta.next) {
+            offset += 100;
+          } else break;
+        }
+        matrixMembers[plan.id] = members;
+
+        // Needed positions
+        const nData = await pcoGet(
+          `/services/v2/service_types/${stId}/plans/${plan.id}/needed_positions?per_page=100&where[team_id]=${teamId}`
+        );
+        matrixNeeded[plan.id] = nData.data || [];
+      } catch (e) {
+        console.warn(`Plan ${plan.id} load error:`, e);
+        matrixMembers[plan.id] = [];
+        matrixNeeded[plan.id] = [];
+      }
+    }
+
+    renderMatrix(stId, teamId, positions, people);
+  } catch (e) {
+    console.warn('loadMatrix error:', e);
+    container.innerHTML = `<div class="state-msg" style="color:var(--red)">Error loading matrix: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderMatrix(stId, teamId, positions, people) {
+  const container = document.getElementById('matrix-container');
+  if (!matrixPlans.length) {
+    container.innerHTML = '<div class="state-msg">No upcoming plans found for this service type.</div>';
+    return;
+  }
+
+  let html = '<div class="matrix-wrapper"><table class="matrix-table"><thead><tr>';
+  html += '<th class="pos-header"><div class="col-header">Position</div></th>';
+
+  matrixPlans.forEach(plan => {
+    const a = plan.attributes;
+    const planId = plan.id;
+    const draftCount = positions.filter(pos => matrixDrafts[`${planId}-${pos.name}`]).length;
+    html += `<th>
+      <div class="col-header">
+        ${esc(a.dates || a.short_dates || a.sort_date.slice(0,10))}
+        <div class="col-subhead">${esc(a.series_title || a.title || '')}</div>
+      </div>
+      <div class="col-send-all">
+        <button class="btn-send-all" onclick="sendAllForPlan('${stId}','${planId}','${teamId}')">▲ Send All</button>
+      </div>
+    </th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  positions.forEach(pos => {
+    html += `<tr><td class="pos-cell">${esc(pos.name)}</td>`;
+    matrixPlans.forEach(plan => {
+      html += `<td class="matrix-cell" id="mc-${plan.id}-${encodeURIComponent(pos.name)}">`;
+      html += renderCell(stId, teamId, plan, pos, people);
+      html += '</td>';
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function renderCell(stId, teamId, plan, pos, people) {
+  const planId = plan.id;
+  const posName = pos.name;
+  const draftKey = `${planId}-${posName}`;
+
+  // Find existing PCO members for this position
+  const members = (matrixMembers[planId] || []).filter(m =>
+    m.attributes.team_position_name === posName ||
+    m.attributes.team_position_name === posName
+  );
+
+  let html = '';
+
+  // Render existing PCO entries
+  members.forEach(m => {
+    const name = m.attributes.name || '';
+    const status = statusLabel(m.attributes.status);
+    const planPersonId = m.id;
+    html += `
+      <div class="cell-person ${status}" id="cp-${planPersonId}">
+        <span class="cell-person-name" title="${esc(name)}">${esc(name)}</span>
+        <button class="cell-remove" title="Remove from PCO"
+          onclick="removeRosterEntry('${stId}','${planId}','${planPersonId}')">✕</button>
+      </div>`;
+  });
+
+  // Draft entry
+  const draft = matrixDrafts[draftKey];
+  if (draft) {
+    html += `
+      <div class="cell-person draft">
+        <span class="cell-person-name" title="${esc(draft.personName)}">${esc(draft.personName)}</span>
+        <button class="cell-remove" onclick="clearDraft('${draftKey}')" title="Clear draft">✕</button>
+      </div>
+      <div class="cell-send">
+        <button class="btn-send-cell"
+          onclick="sendDraft('${stId}','${planId}','${teamId}','${draftKey}','${draft.personId}','${esc(posName)}')">▲ Send</button>
+      </div>`;
+  } else if (members.length === 0) {
+    // Assign dropdown
+    const planDate = (plan.attributes.sort_date || '').slice(0, 10);
+    const peopleOptions = people.map(p => {
+      // Conflict: already rostered in a different position this plan
+      const alreadyRostered = (matrixMembers[planId] || []).some(m =>
+        m.relationships.person.data.id === p.id &&
+        m.attributes.team_position_name !== posName
+      );
+      const isPrimary = primaryPeople.includes(p.id);
+      const conflict = alreadyRostered ? ' ⚠' : '';
+      const star = isPrimary ? '★ ' : '';
+      return `<option value="${p.id}" ${alreadyRostered ? 'style="color:var(--yellow)"' : ''}>${star}${esc(p.name)}${conflict}</option>`;
+    }).join('');
+
+    html += `
+      <div class="cell-assign">
+        <select id="sel-${planId}-${encodeURIComponent(posName)}" style="font-size:11px">
+          <option value="">— assign —</option>
+          ${peopleOptions}
+        </select>
+        <button class="btn-draft"
+          onclick="addDraft('${stId}','${planId}','${esc(posName)}')">+</button>
+      </div>`;
+  }
+  return html;
+}
+
+function addDraft(stId, planId, posName) {
+  const selId = `sel-${planId}-${encodeURIComponent(posName)}`;
+  const sel = document.getElementById(selId);
+  if (!sel || !sel.value) { toast('Select a person first', 'error'); return; }
+  const personId = sel.value;
+  const person = teamPeople.find(p => p.id === personId) ||
+    { name: sel.options[sel.selectedIndex].text.replace('★ ','').replace(' ⚠','') };
+  const draftKey = `${planId}-${posName}`;
+  matrixDrafts[draftKey] = { personId, personName: person.name };
+  // Re-render just this cell
+  const stId2 = document.getElementById('matrix-st-select').value;
+  const teamId = '5764089'; // fallback; re-render gets positions from current state
+  const plan = matrixPlans.find(p => p.id === planId);
+  const pos = teamPositions.find(p => p.name === posName) || { id: '', name: posName };
+  const cell = document.getElementById(`mc-${planId}-${encodeURIComponent(posName)}`);
+  if (cell && plan) {
+    cell.innerHTML = renderCell(stId, stId /* teamId not in scope here — passed as stId2 */, plan, pos, teamPeople);
+    // fix: re-render with proper teamId
+    cell.innerHTML = renderCellById(stId, planId, posName);
+  }
+}
+
+function renderCellById(stId, planId, posName) {
+  const plan = matrixPlans.find(p => p.id === planId);
+  const pos = { name: posName };
+  if (!plan) return '';
+  return renderCell(stId, '5764089', plan, pos, teamPeople);
+}
+
+function clearDraft(draftKey) {
+  delete matrixDrafts[draftKey];
+  // Re-render
+  const [planId, ...posParts] = draftKey.split('-');
+  const posName = posParts.join('-');
+  const cell = document.getElementById(`mc-${planId}-${encodeURIComponent(posName)}`);
+  if (cell) cell.innerHTML = renderCellById(document.getElementById('matrix-st-select').value, planId, posName);
+}
+
+async function sendDraft(stId, planId, teamId, draftKey, personId, posName) {
+  const draft = matrixDrafts[draftKey];
+  if (!draft) return;
+  const ok = await showConfirm(
+    'Send to Planning Center?',
+    `Roster ${draft.personName} as ${posName}. PCO will notify them.`,
+    'Send', 'btn-primary'
+  );
+  if (!ok) return;
+  try {
+    const payload = {
+      data: {
+        type: 'PlanPerson',
+        attributes: {
+          person_id: parseInt(personId, 10),
+          team_id: parseInt(teamId, 10),
+          team_position_name: posName,
+        }
+      }
+    };
+    const res = await pcoPost(
+      `/services/v2/service_types/${stId}/plans/${planId}/team_members`, payload
+    );
+    if (res.data) {
+      toast(`${draft.personName} rostered successfully!`, 'success');
+      delete matrixDrafts[draftKey];
+      // Refresh just this plan
+      await refreshPlanData(stId, planId);
+      const cell = document.getElementById(`mc-${planId}-${encodeURIComponent(posName)}`);
+      if (cell) cell.innerHTML = renderCellById(stId, planId, posName);
+    } else {
+      const errMsg = (res.errors && res.errors[0]) ? res.errors[0].detail : JSON.stringify(res);
+      toast('PCO error: ' + errMsg, 'error');
+      console.warn('PCO roster error:', res);
+    }
+  } catch (e) {
+    console.warn('sendDraft error:', e);
+    toast('Error sending to PCO: ' + e.message, 'error');
+  }
+}
+
+async function sendAllForPlan(stId, planId, teamId) {
+  const planDrafts = Object.entries(matrixDrafts).filter(([k]) => k.startsWith(planId + '-'));
+  if (!planDrafts.length) { toast('No drafts for this plan.', 'info'); return; }
+  const plan = matrixPlans.find(p => p.id === planId);
+  const planName = plan ? (plan.attributes.dates || plan.attributes.sort_date.slice(0,10)) : planId;
+  const ok = await showConfirm(
+    'Send all drafts?',
+    `Send ${planDrafts.length} draft roster(s) for ${planName} to PCO. Each person will be notified.`,
+    'Send All', 'btn-primary'
+  );
+  if (!ok) return;
+  let sent = 0, failed = 0;
+  for (const [draftKey, draft] of planDrafts) {
+    const posName = draftKey.slice(planId.length + 1);
+    try {
+      const payload = {
+        data: {
+          type: 'PlanPerson',
+          attributes: {
+            person_id: parseInt(draft.personId, 10),
+            team_id: parseInt(teamId, 10),
+            team_position_name: posName,
+          }
+        }
+      };
+      const res = await pcoPost(
+        `/services/v2/service_types/${stId}/plans/${planId}/team_members`, payload
+      );
+      if (res.data) {
+        sent++;
+        delete matrixDrafts[draftKey];
+      } else {
+        console.warn('Send error for', draftKey, res);
+        failed++;
+      }
+    } catch (e) {
+      console.warn('sendAllForPlan error:', e);
+      failed++;
+    }
+  }
+  await refreshPlanData(stId, planId);
+  // Re-render all cells for this plan
+  const stIdCurrent = document.getElementById('matrix-st-select').value;
+  teamPositions.forEach(pos => {
+    const cell = document.getElementById(`mc-${planId}-${encodeURIComponent(pos.name)}`);
+    if (cell) cell.innerHTML = renderCellById(stIdCurrent, planId, pos.name);
+  });
+  toast(`Sent ${sent}${failed ? `, ${failed} failed` : ''}.`, failed ? 'error' : 'success');
+}
+
+async function sendAllDrafts() {
+  const allDrafts = Object.keys(matrixDrafts);
+  if (!allDrafts.length) { toast('No drafts to send.', 'info'); return; }
+  const ok = await showConfirm(
+    'Send all drafts?',
+    `Send all ${allDrafts.length} drafts across all plans to PCO.`,
+    'Send All', 'btn-primary'
+  );
+  if (!ok) return;
+  const stId = document.getElementById('matrix-st-select').value;
+  const teamsData = await pcoGet(`/services/v2/service_types/${stId}/teams?per_page=100`);
+  const teams = teamsData.data || [];
+  const prodTeam = teams.find(t => (t.attributes.name||'').toLowerCase().includes('production')) || { id: '5764089' };
+  const teamId = prodTeam.id;
+
+  const planIds = [...new Set(allDrafts.map(k => k.split('-')[0]))];
+  let sent = 0, failed = 0;
+  for (const planId of planIds) {
+    const planDrafts = allDrafts.filter(k => k.startsWith(planId + '-'));
+    for (const draftKey of planDrafts) {
+      const posName = draftKey.slice(planId.length + 1);
+      const draft = matrixDrafts[draftKey];
+      if (!draft) continue;
+      try {
+        const res = await pcoPost(
+          `/services/v2/service_types/${stId}/plans/${planId}/team_members`,
+          { data: { type: 'PlanPerson', attributes: {
+            person_id: parseInt(draft.personId, 10),
+            team_id: parseInt(teamId, 10),
+            team_position_name: posName,
+          }}}
+        );
+        if (res.data) { sent++; delete matrixDrafts[draftKey]; }
+        else { failed++; console.warn('Send all error:', res); }
+      } catch (e) { failed++; console.warn(e); }
+    }
+    await refreshPlanData(stId, planId);
+    teamPositions.forEach(pos => {
+      const cell = document.getElementById(`mc-${planId}-${encodeURIComponent(pos.name)}`);
+      if (cell) cell.innerHTML = renderCellById(stId, planId, pos.name);
+    });
+  }
+  toast(`Sent ${sent}${failed ? `, ${failed} failed` : ''}.`, failed ? 'error' : 'success');
+}
+
+async function removeRosterEntry(stId, planId, planPersonId) {
+  const ok = await showConfirm(
+    'Remove from roster?',
+    'This will delete the roster entry from Planning Center.',
+    'Remove', 'btn-danger'
+  );
+  if (!ok) return;
+  try {
+    await pcoDelete(`/services/v2/service_types/${stId}/plans/${planId}/team_members/${planPersonId}`);
+    toast('Roster entry removed.', 'success');
+    await refreshPlanData(stId, planId);
+    // Re-render all cells for this plan
+    teamPositions.forEach(pos => {
+      const cell = document.getElementById(`mc-${planId}-${encodeURIComponent(pos.name)}`);
+      if (cell) cell.innerHTML = renderCellById(stId, planId, pos.name);
+    });
+  } catch (e) {
+    console.warn('removeRosterEntry error:', e);
+    toast('Error removing: ' + e.message, 'error');
+  }
+}
+
+async function refreshPlanData(stId, planId) {
+  try {
+    let members = [];
+    let offset = 0;
+    while (true) {
+      const mData = await pcoGet(
+        `/services/v2/service_types/${stId}/plans/${planId}/team_members?per_page=100${offset ? `&offset=${offset}` : ''}`
+      );
+      members = members.concat(mData.data || []);
+      if (mData.meta && mData.meta.next) { offset += 100; } else break;
+    }
+    matrixMembers[planId] = members;
+  } catch (e) {
+    console.warn('refreshPlanData error:', e);
+  }
+}
+
+// ─── Auto-roster ─────────────────────────────────────────────────
+function loadPrimaryPeople() {
+  try {
+    primaryPeople = JSON.parse(localStorage.getItem('primaryPeople') || '[]');
+  } catch { primaryPeople = []; }
+}
+function savePrimaryPeople() {
+  localStorage.setItem('primaryPeople', JSON.stringify(primaryPeople));
+}
+function togglePrimary(personId) {
+  if (primaryPeople.includes(personId)) {
+    primaryPeople = primaryPeople.filter(id => id !== personId);
+  } else {
+    primaryPeople.push(personId);
+  }
+  savePrimaryPeople();
+  buildSettingsPrimaryList();
+  renderAutoCfgPeople();
+}
+function buildSettingsPrimaryList() {
+  const el = document.getElementById('primary-people-list');
+  if (!el) return;
+  el.innerHTML = teamPeople.map(p =>
+    `<span class="tag ${primaryPeople.includes(p.id) ? 'primary' : ''}"
+       onclick="togglePrimary('${p.id}')">${esc(p.name)}</span>`
+  ).join('');
+}
+function openAutoRosterConfig() {
+  renderAutoCfgPeople();
+  document.getElementById('auto-cfg-modal').classList.remove('hidden');
+}
+function closeAutoRosterConfig() {
+  document.getElementById('auto-cfg-modal').classList.add('hidden');
+  buildSettingsPrimaryList();
+}
+function renderAutoCfgPeople() {
+  const el = document.getElementById('auto-cfg-people');
+  if (!el) return;
+  el.innerHTML = teamPeople.map(p =>
+    `<span class="tag ${primaryPeople.includes(p.id) ? 'primary' : ''}"
+       onclick="togglePrimary('${p.id}')">${esc(p.name)}</span>`
+  ).join('');
+}
+
+async function runAutoRoster() {
+  const stId = document.getElementById('matrix-st-select').value;
+  if (!stId || !matrixPlans.length) {
+    toast('Load the matrix first.', 'error'); return;
+  }
+  if (!teamPositions.length) { toast('No positions loaded.', 'error'); return; }
+
+  const today = new Date().toISOString().slice(0, 10);
+  let filled = 0;
+
+  for (const plan of matrixPlans) {
+    const planId = plan.id;
+    const planDate = (plan.attributes.sort_date || '').slice(0, 10);
+    if (planDate < today) continue;
+
+    // Gather blockouts for all people for this date
+    const blockedPeople = new Set();
+    for (const person of teamPeople) {
+      try {
+        const bdData = await pcoGet(`/services/v2/people/${person.id}/blockouts?per_page=50`);
+        const blockouts = bdData.data || [];
+        for (const b of blockouts) {
+          const sd = b.attributes.starts_at ? b.attributes.starts_at.slice(0,10) : '';
+          const ed = b.attributes.ends_at ? b.attributes.ends_at.slice(0,10) : sd;
+          if (planDate >= sd && planDate <= ed) {
+            blockedPeople.add(person.id);
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn('Blockout fetch error:', e);
+      }
+    }
+
+    for (const pos of teamPositions) {
+      const draftKey = `${planId}-${pos.name}`;
+      // Skip if already rostered or drafted
+      const alreadyRostered = (matrixMembers[planId] || []).some(
+        m => m.attributes.team_position_name === pos.name
+      );
+      if (alreadyRostered || matrixDrafts[draftKey]) continue;
+
+      // Find eligible, available, unrostered people
+      const rostered = new Set(
+        (matrixMembers[planId] || []).map(m => m.relationships.person.data.id)
+      );
+      const draftedInPlan = new Set(
+        Object.entries(matrixDrafts)
+          .filter(([k]) => k.startsWith(planId + '-'))
+          .map(([, v]) => v.personId)
+      );
+
+      const eligible = teamPeople.filter(p =>
+        !blockedPeople.has(p.id) &&
+        !rostered.has(p.id) &&
+        !draftedInPlan.has(p.id)
+      );
+      if (!eligible.length) continue;
+
+      // Prefer primary people
+      const sorted = [
+        ...eligible.filter(p => primaryPeople.includes(p.id)),
+        ...eligible.filter(p => !primaryPeople.includes(p.id)),
+      ];
+      const chosen = sorted[0];
+      matrixDrafts[draftKey] = { personId: chosen.id, personName: chosen.name };
+      filled++;
+    }
+  }
+
+  if (filled === 0) {
+    toast('No empty slots to fill (or all people blocked).', 'info');
+  } else {
+    toast(`Auto-rostered ${filled} slot(s) as drafts. Review before sending.`, 'success');
+    // Re-render matrix
+    const stId2 = document.getElementById('matrix-st-select').value;
+    matrixPlans.forEach(plan => {
+      teamPositions.forEach(pos => {
+        const cell = document.getElementById(`mc-${plan.id}-${encodeURIComponent(pos.name)}`);
+        if (cell) cell.innerHTML = renderCellById(stId2, plan.id, pos.name);
+      });
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DEPARTMENTS
+// ═══════════════════════════════════════════════════════════════════
+function selectPerson(personId, personName) {
+  // Update active sidebar item
+  document.querySelectorAll('#sidebar-content .sidebar-item').forEach(el => {
+    el.classList.remove('active', 'highlight');
+  });
+  const item = document.getElementById(`si-${personId}`);
+  if (item) { item.classList.add('active', 'highlight'); }
+
+  // Highlight in matrix
+  highlightedPersonId = personId;
+  highlightMatrixPerson(personId);
+
+  // Load departments view if on that tab
+  const panel = document.getElementById('panel-departments');
+  if (panel.classList.contains('active')) {
+    loadDepartmentsForPerson(personId, personName);
+  } else {
+    // Switch to departments tab
+    switchTab('departments');
+    loadDepartmentsForPerson(personId, personName);
+  }
+}
+
+async function loadDepartmentsForPerson(personId, personName) {
+  document.getElementById('dept-person-name').textContent = personName;
+  const content = document.getElementById('dept-content');
+  content.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading…</div>';
+
+  try {
+    // Get all plans this person is in across all service types
+    let rows = [];
+    for (const st of serviceTypes) {
+      const plans = allPlans[st.id] || [];
+      for (const plan of plans) {
+        const members = matrixMembers[plan.id];
+        if (members) {
+          const match = members.find(m => m.relationships.person.data.id === personId);
+          if (match) {
+            rows.push({
+              date: plan.attributes.sort_date.slice(0, 10),
+              stName: st.name,
+              planName: plan.attributes.title || plan.attributes.dates || '',
+              position: match.attributes.team_position_name || '',
+              status: statusLabel(match.attributes.status),
+            });
+          }
+        }
+      }
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+    if (!rows.length) {
+      content.innerHTML = '<div class="state-msg">No upcoming roster entries found for this person.</div>';
+      return;
+    }
+    content.innerHTML = rows.map(r => `
+      <div class="dept-service-row">
+        <div class="dept-service-date">${r.date}</div>
+        <div style="flex:1">
+          <span style="font-weight:500">${esc(r.stName)}</span>
+          ${r.planName ? `<span style="color:var(--muted);font-size:12px"> · ${esc(r.planName)}</span>` : ''}
+        </div>
+        <div style="min-width:100px;font-size:12px;color:var(--muted)">${esc(r.position)}</div>
+        <span class="pos-pill ${r.status}">${r.status}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.warn('loadDepartmentsForPerson error:', e);
+    content.innerHTML = `<div class="state-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function highlightMatrixPerson(personId) {
+  document.querySelectorAll('.cell-person').forEach(el => {
+    el.style.opacity = '';
+  });
+  if (!personId) return;
+  // This is a visual-only hint — full highlight would need a full re-render
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RUN SHEET
+// ═══════════════════════════════════════════════════════════════════
+function buildRunsheetSidebar() {
+  // Populate sidebar with all known plans (flat list, most recent first)
+  const content = document.getElementById('sidebar-content');
+  let items = [];
+  for (const st of serviceTypes) {
+    const plans = allPlans[st.id] || [];
+    plans.forEach(p => {
+      items.push({
+        id: p.id,
+        stId: st.id,
+        stName: st.name,
+        date: p.attributes.sort_date.slice(0, 10),
+        dates: p.attributes.dates || p.attributes.short_dates || p.attributes.sort_date.slice(0,10),
+      });
+    });
+  }
+  items.sort((a, b) => a.date.localeCompare(b.date));
+  content.innerHTML = items.slice(0, 40).map(p => `
+    <div class="sidebar-item" onclick="loadRunSheet('${p.stId}','${p.id}','${esc(p.stName)} · ${esc(p.dates)}')">
+      <span>${esc(p.stName)}<br><small style="color:var(--muted2);font-size:10px">${esc(p.dates)}</small></span>
+    </div>
+  `).join('');
+}
+
+async function loadRunSheet(stId, planId, planLabel) {
+  document.getElementById('runsheet-plan-name').textContent = planLabel;
+  const content = document.getElementById('runsheet-content');
+  content.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading run sheet…</div>';
+  try {
+    const data = await pcoGet(`/services/v2/service_types/${stId}/plans/${planId}/items?per_page=100`);
+    const items = data.data || [];
+    if (!items.length) {
+      content.innerHTML = '<div class="state-msg">No items in this plan.</div>';
+      return;
+    }
+    content.innerHTML = items.map((item, i) => {
+      const a = item.attributes;
+      return `
+        <div class="runsheet-item">
+          <div class="runsheet-seq">${String(i+1).padStart(2,'0')}</div>
+          <div class="runsheet-type">${esc(a.item_type || '')}</div>
+          <div>
+            <div class="runsheet-title">${esc(a.title || '(untitled)')}</div>
+            ${a.description ? `<div class="runsheet-sub">${esc(a.description)}</div>` : ''}
+            ${a.key_name ? `<div class="runsheet-sub" style="font-family:var(--mono);font-size:11px">Key: ${esc(a.key_name)}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    console.warn('loadRunSheet error:', e);
+    content.innerHTML = `<div class="state-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FULL CALENDAR
+// ═══════════════════════════════════════════════════════════════════
+function buildFullCalendar() {
+  const y = fullCalYear, m = fullCalMonth;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('full-cal-title').textContent = `${months[m]} ${y}`;
+
+  const dowEl = document.getElementById('full-cal-dow');
+  dowEl.innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d =>
+    `<div class="full-cal-dow">${d}</div>`
+  ).join('');
+
+  const first = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  let cells = '';
+  // Leading blanks
+  for (let i = 0; i < first; i++) {
+    cells += '<div class="full-cal-day other-month"></div>';
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const dayEvents = allCalEvents.filter(e => e.date === dateStr);
+    const evHtml = dayEvents.map(e =>
+      `<div class="cal-event" title="${esc(e.name)}">${esc(e.name)}</div>`
+    ).join('');
+    cells += `
+      <div class="full-cal-day${isToday ? ' today' : ''}">
+        <div class="full-cal-day-num">${d}</div>
+        ${evHtml}
+      </div>`;
+  }
+  document.getElementById('full-cal-grid').innerHTML = cells;
+}
+
+function fullCalPrev() {
+  fullCalMonth--;
+  if (fullCalMonth < 0) { fullCalMonth = 11; fullCalYear--; }
+  buildFullCalendar();
+}
+function fullCalNext() {
+  fullCalMonth++;
+  if (fullCalMonth > 11) { fullCalMonth = 0; fullCalYear++; }
+  buildFullCalendar();
+}
+function fullCalToday() {
+  const now = new Date();
+  fullCalYear = now.getFullYear();
+  fullCalMonth = now.getMonth();
+  buildFullCalendar();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INVENTORY
+// ═══════════════════════════════════════════════════════════════════
+async function loadInventory() {
+  try {
+    const res = await fetch('/inventory');
+    inventoryItems = await res.json();
+    renderInventory();
+  } catch (e) {
+    console.warn('loadInventory error:', e);
+    document.getElementById('inventory-list').innerHTML =
+      `<div class="state-msg" style="color:var(--red)">Error loading inventory: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderInventory() {
+  const q = (document.getElementById('inv-search').value || '').toLowerCase();
+  const catFilter = document.getElementById('inv-cat-filter').value;
+  const categories = ['Audio','Lighting','Video','Computers','Network','Rigging'];
+  let items = inventoryItems;
+  if (q) items = items.filter(i =>
+    (i.item||'').toLowerCase().includes(q) ||
+    (i.brand||'').toLowerCase().includes(q) ||
+    (i.notes||'').toLowerCase().includes(q)
+  );
+  if (catFilter) items = items.filter(i => i.category === catFilter);
+
+  const container = document.getElementById('inventory-list');
+  if (!items.length) {
+    container.innerHTML = '<div class="state-msg">No items found.</div>';
+    return;
+  }
+
+  let html = '';
+  const activeCats = catFilter ? [catFilter] : categories;
+  activeCats.forEach(cat => {
+    const catItems = items.filter(i => i.category === cat);
+    if (!catItems.length) return;
+    html += `
+      <div class="inv-category-block">
+        <div class="inv-category-header">
+          <div class="inv-category-label">${cat}</div>
+          <div class="inv-category-count">${catItems.length} item${catItems.length !== 1 ? 's' : ''}</div>
+        </div>
+        <table class="inv-table">
+          <thead><tr>
+            <th style="min-width:160px">Item</th>
+            <th style="min-width:100px">Brand</th>
+            <th style="min-width:60px">Qty</th>
+            <th style="min-width:80px">Value</th>
+            <th style="min-width:80px">Retail</th>
+            <th style="min-width:120px">Location</th>
+            <th>Notes</th>
+            <th style="width:80px"></th>
+          </tr></thead>
+          <tbody>
+            ${catItems.map(item => `
+              <tr>
+                <td style="font-weight:500">${esc(item.item)}</td>
+                <td>${esc(item.brand)}</td>
+                <td style="font-family:var(--mono)">${item.quantity}</td>
+                <td style="font-family:var(--mono)">${fmtCurrency(item.value)}</td>
+                <td style="font-family:var(--mono)">${fmtCurrency(item.retailValue)}</td>
+                <td>${esc(item.location)}</td>
+                <td class="notes-cell">${esc(item.notes)}</td>
+                <td>
+                  <div class="inv-table actions">
+                    <button class="btn btn-ghost btn-sm" onclick="openInvModal('${esc(item.id)}')">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteInvItem('${esc(item.id)}','${esc(item.item)}')">✕</button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  });
+
+  // Uncategorised
+  const uncatItems = items.filter(i => !categories.includes(i.category));
+  if (uncatItems.length) {
+    html += `<div class="inv-category-block">
+      <div class="inv-category-header">
+        <div class="inv-category-label" style="color:var(--muted)">Uncategorised</div>
+        <div class="inv-category-count">${uncatItems.length} item(s)</div>
+      </div>
+      <table class="inv-table"><thead><tr>
+        <th>Item</th><th>Brand</th><th>Qty</th><th>Value</th><th>Retail</th><th>Location</th><th>Notes</th><th></th>
+      </tr></thead><tbody>
+        ${uncatItems.map(item => `
+          <tr>
+            <td style="font-weight:500">${esc(item.item)}</td>
+            <td>${esc(item.brand)}</td>
+            <td style="font-family:var(--mono)">${item.quantity}</td>
+            <td style="font-family:var(--mono)">${fmtCurrency(item.value)}</td>
+            <td style="font-family:var(--mono)">${fmtCurrency(item.retailValue)}</td>
+            <td>${esc(item.location)}</td>
+            <td class="notes-cell">${esc(item.notes)}</td>
+            <td><div class="actions">
+              <button class="btn btn-ghost btn-sm" onclick="openInvModal('${esc(item.id)}')">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteInvItem('${esc(item.id)}','${esc(item.item)}')">✕</button>
+            </div></td>
+          </tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+let editingInvId = null;
+function openInvModal(id) {
+  editingInvId = id;
+  const modal = document.getElementById('inv-modal');
+  document.getElementById('inv-modal-title').textContent = id ? 'Edit Item' : 'Add Item';
+  if (id) {
+    const item = inventoryItems.find(i => i.id === id);
+    if (!item) return;
+    document.getElementById('inv-f-item').value = item.item || '';
+    document.getElementById('inv-f-brand').value = item.brand || '';
+    document.getElementById('inv-f-category').value = item.category || '';
+    document.getElementById('inv-f-quantity').value = item.quantity || 1;
+    document.getElementById('inv-f-value').value = item.value || '';
+    document.getElementById('inv-f-retail').value = item.retailValue || '';
+    document.getElementById('inv-f-location').value = item.location || '';
+    document.getElementById('inv-f-notes').value = item.notes || '';
+  } else {
+    document.getElementById('inv-f-item').value = '';
+    document.getElementById('inv-f-brand').value = '';
+    document.getElementById('inv-f-category').value = '';
+    document.getElementById('inv-f-quantity').value = 1;
+    document.getElementById('inv-f-value').value = '';
+    document.getElementById('inv-f-retail').value = '';
+    document.getElementById('inv-f-location').value = '';
+    document.getElementById('inv-f-notes').value = '';
+  }
+  modal.classList.remove('hidden');
+}
+function closeInvModal() {
+  document.getElementById('inv-modal').classList.add('hidden');
+  editingInvId = null;
+}
+async function saveInvItem() {
+  const item = {
+    item: document.getElementById('inv-f-item').value.trim(),
+    brand: document.getElementById('inv-f-brand').value.trim(),
+    category: document.getElementById('inv-f-category').value,
+    quantity: parseInt(document.getElementById('inv-f-quantity').value) || 1,
+    value: parseFloat(document.getElementById('inv-f-value').value) || 0,
+    retailValue: parseFloat(document.getElementById('inv-f-retail').value) || 0,
+    location: document.getElementById('inv-f-location').value,
+    notes: document.getElementById('inv-f-notes').value.trim(),
+  };
+  if (!item.item) { toast('Item name is required.', 'error'); return; }
+  try {
+    let res;
+    if (editingInvId) {
+      res = await fetch(`/inventory/update/${editingInvId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+    } else {
+      res = await fetch('/inventory/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+    }
+    const data = await res.json();
+    if (data.id) {
+      if (editingInvId) {
+        inventoryItems = inventoryItems.map(i => i.id === editingInvId ? data : i);
+      } else {
+        inventoryItems.push(data);
+      }
+      renderInventory();
+      closeInvModal();
+      toast(editingInvId ? 'Item updated.' : 'Item added.', 'success');
+    } else {
+      toast('Save failed: ' + JSON.stringify(data), 'error');
+    }
+  } catch (e) {
+    console.warn('saveInvItem error:', e);
+    toast('Error saving: ' + e.message, 'error');
+  }
+}
+async function deleteInvItem(id, name) {
+  const ok = await showConfirm('Delete item?', `Delete "${name}" from inventory?`, 'Delete', 'btn-danger');
+  if (!ok) return;
+  try {
+    const res = await fetch(`/inventory/delete/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.deleted) {
+      inventoryItems = inventoryItems.filter(i => i.id !== id);
+      renderInventory();
+      toast('Item deleted.', 'success');
+    } else {
+      toast('Delete failed.', 'error');
+    }
+  } catch (e) {
+    console.warn('deleteInvItem error:', e);
+    toast('Error deleting: ' + e.message, 'error');
+  }
+}
+
+function exportInvCSV() {
+  const headers = ['Item','Brand','Category','Quantity','Value','Retail Value','Location','Notes'];
+  const rows = inventoryItems.map(i => [
+    i.item, i.brand, i.category, i.quantity, i.value, i.retailValue, i.location,
+    (i.notes || '').replace(/\n/g, ' ')
+  ].map(v => `"${String(v || '').replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'inventory.csv';
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════════════════
+function initSettings() {
+  document.getElementById('settings-app-id').value = pcoAppId || '';
+  document.getElementById('settings-secret').value = pcoSecret || '';
+}
+
+async function connectFromSettings() {
+  const id = document.getElementById('settings-app-id').value.trim();
+  const sec = document.getElementById('settings-secret').value.trim();
+  const statusEl = document.getElementById('settings-connect-status');
+  if (!id || !sec) { statusEl.textContent = 'App ID and secret required.'; return; }
+  pcoAppId = id;
+  pcoSecret = sec;
+  pcoAuth = btoa(`${id}:${sec}`);
+  statusEl.textContent = 'Connecting…';
+  try {
+    await connectPCO();
+    statusEl.textContent = '✓ Connected';
+  } catch (e) {
+    statusEl.textContent = '✗ ' + e.message;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TABS & SIDEBAR
+// ═══════════════════════════════════════════════════════════════════
+const SIDEBAR_TABS = {
+  matrix: 'People',
+  departments: 'People',
+  runsheet: 'Services',
+};
+const SIDEBAR_ACTIONS = {
+  matrix: buildSidebarPeople,
+  departments: buildSidebarPeople,
+  runsheet: buildRunsheetSidebar,
+};
+
+let currentTab = 'home';
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`panel-${tabId}`).classList.add('active');
+  document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+  currentTab = tabId;
+
+  const sidebar = document.getElementById('sidebar');
+  if (SIDEBAR_TABS[tabId]) {
+    sidebar.style.display = 'flex';
+    document.getElementById('sidebar-title').textContent = SIDEBAR_TABS[tabId];
+    if (SIDEBAR_ACTIONS[tabId]) SIDEBAR_ACTIONS[tabId]();
+  } else {
+    sidebar.style.display = 'none';
+  }
+
+  // Lazy-load tabs
+  if (tabId === 'inventory' && inventoryItems.length === 0) loadInventory();
+  if (tabId === 'calendar') buildFullCalendar();
+}
+
+let sidebarCollapsed = false;
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  const sidebar = document.getElementById('sidebar');
+  const btn = document.getElementById('sidebar-toggle');
+  if (sidebarCollapsed) {
+    sidebar.classList.add('collapsed');
+    btn.textContent = '▶';
+  } else {
+    sidebar.classList.remove('collapsed');
+    btn.textContent = '◀';
+  }
+}
+</script>
+
+</body>
+</html>
