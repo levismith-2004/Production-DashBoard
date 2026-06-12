@@ -625,17 +625,26 @@ option.primary-person::before { content: '★ '; }
   }
   #connection-status { display: flex; }
 
-  /* ── App shell adjusts for fixed topbar + bottom nav ── */
-  /* padding-bottom on #app shrinks #layout-body so it ends above the fixed nav */
-  #app { padding-top: var(--topbar-h); padding-bottom: var(--mob-nav-h); height: 100vh; display: flex; flex-direction: column; }
-  #layout-body { flex: 1; overflow: hidden; min-height: 0; }
+  /* ── Allow scrolling on mobile (body is overflow:hidden on desktop) ── */
+  html, body { overflow: auto; height: auto; }
+
+  /* ── App: normal flow, topbar fixed at top ── */
+  #app { padding-top: var(--topbar-h); padding-bottom: 0;
+    height: auto; min-height: 100vh; overflow: visible; display: flex; flex-direction: column; }
+
+  /* ── Layout body: normal flow ── */
+  #layout-body { height: auto; overflow: visible; flex: none; }
 
   /* ── Sidebar hidden on mobile ── */
   #sidebar { display: none !important; }
 
-  /* ── Tab content scrolls within the exact space above the nav ── */
-  #tab-content { padding: 14px; overflow-y: auto; overflow-x: hidden; height: 100%; }
-  #tab-content:has(#panel-calendar.active) { padding: 10px; overflow: hidden; }
+  /* ── Tab content: natural document flow, bottom pad clears fixed nav ── */
+  #tab-content { padding: 14px; padding-bottom: calc(var(--mob-nav-h) + 14px);
+    overflow: visible; height: auto; min-height: 0; }
+  #tab-content:has(#panel-calendar.active) { padding: 10px; padding-bottom: calc(var(--mob-nav-h) + 10px); }
+
+  /* ── Panels: block layout, natural height ── */
+  .tab-panel.active { display: block; height: auto; }
 
   /* ── Hide desktop-only tabs on mobile (inventory stays — shown as cards) ── */
   #panel-matrix, #panel-stats,
@@ -714,7 +723,7 @@ option.primary-person::before { content: '★ '; }
   .card { padding: 14px; }
   .section-title { font-size: 15px; }
 
-  /* ── Calendar fills screen ── */
+  /* ── Calendar fills viewport minus bars ── */
   #panel-calendar { height: calc(100vh - var(--topbar-h) - var(--mob-nav-h) - 28px); }
   .full-cal-day { padding: 4px; }
   .full-cal-day-num { font-size: 10px; }
