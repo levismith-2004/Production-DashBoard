@@ -632,13 +632,48 @@ option.primary-person::before { content: '★ '; }
   /* ── Sidebar hidden on mobile ── */
   #sidebar { display: none !important; }
 
-  /* ── Tab content fills remaining space ── */
-  #tab-content { padding: 14px; overflow: auto; height: 100%; }
-  #tab-content:has(#panel-calendar.active) { padding: 10px; }
+  /* ── Tab content fills remaining space, with bottom padding so content clears nav ── */
+  #tab-content { padding: 14px 14px calc(var(--mob-nav-h) + 14px) 14px; overflow: auto; height: 100%; }
+  #tab-content:has(#panel-calendar.active) { padding: 10px 10px calc(var(--mob-nav-h) + 10px) 10px; }
 
-  /* ── Hide desktop-only tabs on mobile ── */
-  #panel-matrix, #panel-inventory, #panel-stats,
+  /* ── Hide desktop-only tabs on mobile (inventory stays — shown as cards) ── */
+  #panel-matrix, #panel-stats,
   #panel-reliability, #panel-departments { display: none !important; }
+
+  /* ── Inventory: hide desktop table, show mobile cards ── */
+  .inv-totals { gap: 14px; padding: 10px 12px; }
+  .inv-total-value { font-size: 14px; }
+  #inventory-controls { flex-wrap: nowrap; gap: 8px; }
+  #inv-search { width: 100%; min-width: 0; }
+  /* Hide the desktop table entirely on mobile */
+  .inv-table { display: none; }
+  /* Mobile inventory cards */
+  .mob-inv-cards { display: flex; flex-direction: column; gap: 10px; }
+  .mob-inv-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .mob-inv-card-header {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+  }
+  .mob-inv-card-name { font-weight: 600; font-size: 15px; flex: 1; }
+  .mob-inv-card-brand { font-size: 12px; color: var(--muted); }
+  .mob-inv-card-cat {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--accent);
+    padding: 2px 7px; border-radius: 8px; background: var(--accent-glow);
+    border: 1px solid rgba(56,189,248,.25); white-space: nowrap; flex-shrink: 0;
+  }
+  .mob-inv-card-meta {
+    display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px;
+    color: var(--muted); font-family: var(--mono);
+  }
+  .mob-inv-card-meta span { display: flex; gap: 4px; align-items: center; }
+  .mob-inv-card-meta .val { color: var(--text); font-weight: 500; }
+  .mob-inv-card-notes { font-size: 12px; color: var(--muted2); line-height: 1.4; }
+  .mob-inv-card-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .mob-inv-card-actions .btn { flex: 1; justify-content: center; padding: 9px; font-size: 13px; }
 
   /* ── Home grid: single column ── */
   #home-grid {
@@ -724,6 +759,7 @@ option.primary-person::before { content: '★ '; }
 @media (min-width: 769px) {
   #mob-nav { display: none; }
   #mob-topbar-right { display: none; }
+  .mob-inv-cards { display: none; }
 }
 
 /* ── Volunteer Stats & Reliability tabs ──────────────────────── */
@@ -1072,6 +1108,9 @@ option.primary-person::before { content: '★ '; }
     </button>
     <button class="mob-nav-btn" onclick="switchTab('calendar')" data-mob-tab="calendar">
       <span class="nav-icon">📅</span>Calendar
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('inventory')" data-mob-tab="inventory">
+      <span class="nav-icon">📦</span>Inventory
     </button>
     <button class="mob-nav-btn" onclick="switchTab('departments')" data-mob-tab="departments">
       <span class="nav-icon">👤</span>People
@@ -2757,7 +2796,43 @@ function renderInventory() {
   });
 
   tableHtml += '</table>';
-  container.innerHTML = totalsHtml + tableHtml;
+
+  // ── Mobile card view (CSS hides the table on small screens) ──────
+  const mobCards = (catFilter ? [catFilter] : [...categories, '__uncat__']).map(cat => {
+    let catItems = cat === '__uncat__'
+      ? items.filter(i => !categories.includes(i.category))
+      : items.filter(i => i.category === cat);
+    if (!catItems.length) return '';
+    catItems = catItems.slice().sort((a, b) => {
+      const ba = (a.brand||'').toLowerCase(), bb = (b.brand||'').toLowerCase();
+      if (!ba && bb) return 1; if (ba && !bb) return -1;
+      return ba !== bb ? ba.localeCompare(bb) : (a.item||'').toLowerCase().localeCompare((b.item||'').toLowerCase());
+    });
+    const catLabel = cat === '__uncat__' ? 'Uncategorised' : cat;
+    return catItems.map(item => `
+      <div class="mob-inv-card">
+        <div class="mob-inv-card-header">
+          <div>
+            <div class="mob-inv-card-name">${esc(item.item)}</div>
+            ${item.brand ? `<div class="mob-inv-card-brand">${esc(item.brand)}</div>` : ''}
+          </div>
+          ${item.category ? `<div class="mob-inv-card-cat">${esc(item.category)}</div>` : ''}
+        </div>
+        <div class="mob-inv-card-meta">
+          <span>Qty <span class="val">${item.quantity}</span></span>
+          ${item.value ? `<span>Paid <span class="val">${fmtCurrency(item.value)}</span></span>` : ''}
+          ${item.retailValue ? `<span>Retail <span class="val">${fmtCurrency(item.retailValue)}</span></span>` : ''}
+          ${item.location ? `<span>📍 <span class="val">${esc(item.location)}</span></span>` : ''}
+        </div>
+        ${item.notes ? `<div class="mob-inv-card-notes">${esc(item.notes)}</div>` : ''}
+        <div class="mob-inv-card-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openInvModal('${esc(item.id)}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteInvItem('${esc(item.id)}','${esc(item.item)}')">Delete</button>
+        </div>
+      </div>`).join('');
+  }).join('');
+
+  container.innerHTML = totalsHtml + tableHtml + `<div class="mob-inv-cards">${mobCards}</div>`;
 }
 
 let editingInvId = null;
