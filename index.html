@@ -1437,15 +1437,18 @@ async function buildGapsList() {
   const nowStr = now.toISOString().slice(0, 10);
   const fwStr = fourWeeks.toISOString().slice(0, 10);
 
-  // Only Sunday AM + Sunday PM
-  const upcoming = allCalEvents.filter(e =>
-    e.date >= nowStr && e.date <= fwStr && SUNDAY_ST_IDS.has(e.stId)
-  );
+  // Only Sunday AM + Sunday PM, sorted by date
+  const upcoming = allCalEvents
+    .filter(e => e.date >= nowStr && e.date <= fwStr && SUNDAY_ST_IDS.has(e.stId))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   if (!upcoming.length) {
     container.innerHTML = '<div style="color:var(--muted);font-size:13px">No Sunday services found in the next 4 weeks.</div>';
     return;
   }
+
+  // Production position names for filtering
+  const prodPositionNames = new Set(teamPositions.map(p => p.name));
 
   let gapRows = [];
   for (const ev of upcoming) {
@@ -1453,7 +1456,9 @@ async function buildGapsList() {
       const data = await pcoGet(
         `/services/v2/service_types/${ev.stId}/plans/${ev.plan.id}/needed_positions?per_page=100`
       );
-      const needed = data.data || [];
+      const needed = (data.data || []).filter(n =>
+        prodPositionNames.has(n.attributes.team_position_name)
+      );
       if (needed.length > 0) {
         gapRows.push({ ev, needed });
       }
@@ -1463,7 +1468,7 @@ async function buildGapsList() {
   }
 
   if (!gapRows.length) {
-    container.innerHTML = '<div style="color:var(--green);font-size:13px">✓ No gaps in Sunday rosters for the next 4 weeks!</div>';
+    container.innerHTML = '<div style="color:var(--green);font-size:13px">✓ No gaps in Sunday production rosters for the next 4 weeks!</div>';
     return;
   }
 
