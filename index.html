@@ -554,6 +554,60 @@ a { color: var(--accent); text-decoration: none; }
 
 /* Primary badge in dropdown */
 option.primary-person::before { content: '★ '; }
+
+/* ── Volunteer Stats & Reliability tabs ──────────────────────── */
+.stats-controls {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.stats-controls select {
+  background: var(--surface); border: 1px solid var(--border2); color: var(--text);
+  padding: 7px 12px; border-radius: var(--radius-sm); outline: none; cursor: pointer;
+}
+.stats-table { width: 100%; border-collapse: collapse; }
+.stats-table th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; padding: 8px 12px;
+  border-bottom: 2px solid var(--border); white-space: nowrap; cursor: pointer;
+  user-select: none;
+}
+.stats-table th:hover { color: var(--text); }
+.stats-table th.sorted { color: var(--accent); }
+.stats-table th.sorted::after { content: ' ↓'; }
+.stats-table th.sorted.asc::after { content: ' ↑'; }
+.stats-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  font-size: 13px; vertical-align: middle;
+}
+.stats-table tr:hover td { background: var(--surface2); }
+.stats-table td.mono { font-family: var(--mono); }
+
+/* Mini bar chart inside cell */
+.mini-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 1px; width: 120px; }
+.mini-bar-seg { height: 100%; border-radius: 2px; }
+.mini-bar-seg.confirmed { background: var(--green); }
+.mini-bar-seg.pending   { background: var(--yellow); }
+.mini-bar-seg.declined  { background: var(--red); }
+
+/* Reliability score badge */
+.score-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 52px; height: 26px; border-radius: 13px;
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+}
+.score-badge.excellent { background: var(--green-glow); color: var(--green); border: 1px solid rgba(74,222,128,.4); }
+.score-badge.good      { background: var(--yellow-glow); color: var(--yellow); border: 1px solid rgba(251,191,36,.4); }
+.score-badge.low       { background: var(--red-glow); color: var(--red); border: 1px solid rgba(248,113,113,.4); }
+.score-badge.none      { background: var(--surface2); color: var(--muted2); border: 1px solid var(--border2); }
+
+/* Streak dots */
+.streak-dots { display: flex; gap: 3px; flex-wrap: wrap; max-width: 180px; }
+.streak-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.streak-dot.confirmed { background: var(--green); }
+.streak-dot.pending   { background: var(--yellow); }
+.streak-dot.declined  { background: var(--red); }
+.streak-dot.empty     { background: var(--border2); }
 </style>
 </head>
 <body>
@@ -585,6 +639,8 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn" onclick="switchTab('runsheet')" data-tab="runsheet">Run Sheet</button>
       <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
+      <button class="tab-btn" onclick="switchTab('stats')" data-tab="stats">Volunteer Stats</button>
+      <button class="tab-btn" onclick="switchTab('reliability')" data-tab="reliability">Reliability</button>
       <div class="tab-spacer"></div>
       <div id="connection-status">
         <div class="status-dot" id="conn-dot"></div>
@@ -728,6 +784,54 @@ option.primary-person::before { content: '★ '; }
           </select>
         </div>
         <div id="inventory-list"><div class="state-msg">Loading inventory…</div></div>
+      </div>
+
+      <!-- ── Volunteer Stats ────────────────────────────────── -->
+      <div class="tab-panel" id="panel-stats">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Volunteer Stats</div>
+            <div class="section-sub" id="stats-sub">Service counts per person on the production team</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="exportStatsCSV()">↓ CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="loadVolunteerStats()">↺ Refresh</button>
+          </div>
+        </div>
+        <div class="stats-controls">
+          <label style="font-size:12px;color:var(--muted)">Period:</label>
+          <select id="stats-period" onchange="loadVolunteerStats()">
+            <option value="3">Last 3 months</option>
+            <option value="6" selected>Last 6 months</option>
+            <option value="12">Last 12 months</option>
+            <option value="24">Last 24 months</option>
+          </select>
+        </div>
+        <div id="stats-content"><div class="state-msg">Click Refresh to load volunteer statistics.</div></div>
+      </div>
+
+      <!-- ── Reliability Score ──────────────────────────────── -->
+      <div class="tab-panel" id="panel-reliability">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Reliability Score</div>
+            <div class="section-sub" id="reliability-sub">Confirmed vs declined — who you can count on</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="exportReliabilityCSV()">↓ CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="loadVolunteerStats()">↺ Refresh</button>
+          </div>
+        </div>
+        <div class="stats-controls">
+          <label style="font-size:12px;color:var(--muted)">Period:</label>
+          <select id="reliability-period" onchange="loadVolunteerStats()">
+            <option value="3">Last 3 months</option>
+            <option value="6" selected>Last 6 months</option>
+            <option value="12">Last 12 months</option>
+            <option value="24">Last 24 months</option>
+          </select>
+        </div>
+        <div id="reliability-content"><div class="state-msg">Click Refresh to load reliability data.</div></div>
       </div>
 
       <!-- ── Settings ──────────────────────────────────────── -->
@@ -2531,6 +2635,336 @@ function toggleSidebar() {
     sidebar.classList.remove('collapsed');
     btn.textContent = '◀';
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  VOLUNTEER STATS & RELIABILITY — shared data fetch
+// ═══════════════════════════════════════════════════════════════════
+
+// Cache: {monthsKey: {personId: {name, confirmed, pending, declined, services:[{date,pos,status}]}}}
+let statsCache = {};
+let statsSortCol = 'total';
+let statsSortAsc = false;
+let reliSortCol = 'score';
+let reliSortAsc = false;
+
+async function loadVolunteerStats() {
+  // Read period from whichever tab is active
+  const periodEl = document.getElementById(
+    currentTab === 'reliability' ? 'reliability-period' : 'stats-period'
+  );
+  const months = parseInt(periodEl.value) || 6;
+
+  const statsEl = document.getElementById('stats-content');
+  const relEl = document.getElementById('reliability-content');
+  const loading = '<div class="state-msg"><div class="spinner"></div><br>Loading data from PCO…</div>';
+  if (statsEl) statsEl.innerHTML = loading;
+  if (relEl) relEl.innerHTML = loading;
+
+  // Sync both period selects
+  const sp = document.getElementById('stats-period');
+  const rp = document.getElementById('reliability-period');
+  if (sp) sp.value = months;
+  if (rp) rp.value = months;
+
+  const cacheKey = String(months);
+  if (statsCache[cacheKey]) {
+    renderStats(statsCache[cacheKey], months);
+    renderReliability(statsCache[cacheKey], months);
+    return;
+  }
+
+  if (!connected || !teamPeople.length) {
+    const msg = '<div class="state-msg" style="color:var(--red)">Connect to PCO first.</div>';
+    if (statsEl) statsEl.innerHTML = msg;
+    if (relEl) relEl.innerHTML = msg;
+    return;
+  }
+
+  // Date range
+  const now = new Date();
+  const since = new Date(now);
+  since.setMonth(since.getMonth() - months);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  // Build person map
+  const personMap = {};
+  teamPeople.forEach(p => {
+    personMap[p.id] = { name: p.name, confirmed: 0, pending: 0, declined: 0, services: [] };
+  });
+
+  // Fetch historical plans from Sunday AM + PM + all other service types
+  // Use Sunday IDs primarily (most production), but include all STs
+  const stIds = serviceTypes.map(s => s.id);
+
+  let plansFetched = 0;
+  for (const stId of stIds) {
+    try {
+      // Fetch past plans — use no filter (past plans won't show in future filter)
+      let offset = 0;
+      while (true) {
+        const data = await pcoGet(
+          `/services/v2/service_types/${stId}/plans?order=-sort_date&per_page=50${offset ? `&offset=${offset}` : ''}`
+        );
+        const plans = data.data || [];
+        if (!plans.length) break;
+
+        let doneWithRange = false;
+        for (const plan of plans) {
+          const dateStr = (plan.attributes.sort_date || '').slice(0, 10);
+          if (dateStr < sinceStr) { doneWithRange = true; break; }
+
+          // Load team members for this plan
+          try {
+            const mData = await pcoGet(
+              `/services/v2/service_types/${stId}/plans/${plan.id}/team_members?per_page=100`
+            );
+            const members = mData.data || [];
+            members.forEach(m => {
+              const pid = m.relationships.person.data.id;
+              if (!personMap[pid]) return; // not production team
+              const status = m.attributes.status; // C/D/U
+              const entry = {
+                date: dateStr,
+                stId,
+                planId: plan.id,
+                position: m.attributes.team_position_name || '',
+                status,
+              };
+              personMap[pid].services.push(entry);
+              if (status === 'C') personMap[pid].confirmed++;
+              else if (status === 'D') personMap[pid].declined++;
+              else personMap[pid].pending++;
+            });
+            plansFetched++;
+          } catch (e) {
+            console.warn('Stats plan members error:', e);
+          }
+        }
+        if (doneWithRange || !data.meta || !data.meta.next) break;
+        offset += 50;
+      }
+    } catch (e) {
+      console.warn(`Stats ST ${stId} error:`, e);
+    }
+  }
+
+  statsCache[cacheKey] = personMap;
+  document.getElementById('stats-sub').textContent =
+    `Last ${months} months · ${plansFetched} plans scanned · ${teamPeople.length} people`;
+  document.getElementById('reliability-sub').textContent =
+    `Last ${months} months · ${plansFetched} plans scanned`;
+
+  renderStats(personMap, months);
+  renderReliability(personMap, months);
+}
+
+// ─── Volunteer Stats render ───────────────────────────────────────
+function renderStats(personMap, months) {
+  const el = document.getElementById('stats-content');
+  if (!el) return;
+
+  let rows = Object.entries(personMap).map(([id, p]) => ({
+    id, name: p.name,
+    confirmed: p.confirmed, pending: p.pending, declined: p.declined,
+    total: p.confirmed + p.pending + p.declined,
+    lastServed: p.services.length
+      ? p.services.slice().sort((a,b) => b.date.localeCompare(a.date))[0].date
+      : null,
+    avgPerMonth: ((p.confirmed + p.pending) / months).toFixed(1),
+  }));
+
+  // Sort
+  rows.sort((a, b) => {
+    const av = a[statsSortCol] ?? '';
+    const bv = b[statsSortCol] ?? '';
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv));
+    return statsSortAsc ? cmp : -cmp;
+  });
+
+  const thStyle = col => `onclick="sortStats('${col}')"
+    class="${statsSortCol === col ? 'sorted' + (statsSortAsc ? ' asc' : '') : ''}"`;
+
+  el.innerHTML = `<table class="stats-table">
+    <thead><tr>
+      <th ${thStyle('name')}>Name</th>
+      <th ${thStyle('total')}>Total</th>
+      <th ${thStyle('confirmed')}>Confirmed</th>
+      <th ${thStyle('pending')}>Pending</th>
+      <th ${thStyle('declined')}>Declined</th>
+      <th ${thStyle('avgPerMonth')}>Avg/Month</th>
+      <th ${thStyle('lastServed')}>Last Served</th>
+      <th>Breakdown</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r => {
+        const total = r.total || 1;
+        const cPct = (r.confirmed / total * 100).toFixed(0);
+        const pPct = (r.pending / total * 100).toFixed(0);
+        const dPct = (r.declined / total * 100).toFixed(0);
+        const lastServedDisplay = r.lastServed
+          ? `<span style="font-family:var(--mono);font-size:12px">${r.lastServed}</span>`
+          : `<span style="color:var(--muted2)">—</span>`;
+        return `<tr>
+          <td style="font-weight:600">${esc(r.name)}</td>
+          <td class="mono" style="text-align:right">${r.total}</td>
+          <td class="mono" style="color:var(--green);text-align:right">${r.confirmed}</td>
+          <td class="mono" style="color:var(--yellow);text-align:right">${r.pending}</td>
+          <td class="mono" style="color:var(--red);text-align:right">${r.declined}</td>
+          <td class="mono" style="text-align:right">${r.avgPerMonth}</td>
+          <td>${lastServedDisplay}</td>
+          <td>
+            <div class="mini-bar" title="Confirmed ${cPct}% · Pending ${pPct}% · Declined ${dPct}%">
+              ${r.confirmed ? `<div class="mini-bar-seg confirmed" style="flex:${r.confirmed}"></div>` : ''}
+              ${r.pending   ? `<div class="mini-bar-seg pending"   style="flex:${r.pending}"></div>` : ''}
+              ${r.declined  ? `<div class="mini-bar-seg declined"  style="flex:${r.declined}"></div>` : ''}
+              ${!r.total    ? `<div class="mini-bar-seg empty"      style="flex:1;background:var(--border2)"></div>` : ''}
+            </div>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function sortStats(col) {
+  if (statsSortCol === col) statsSortAsc = !statsSortAsc;
+  else { statsSortCol = col; statsSortAsc = false; }
+  const months = parseInt(document.getElementById('stats-period').value) || 6;
+  const key = String(months);
+  if (statsCache[key]) renderStats(statsCache[key], months);
+}
+
+// ─── Reliability render ───────────────────────────────────────────
+function renderReliability(personMap, months) {
+  const el = document.getElementById('reliability-content');
+  if (!el) return;
+
+  let rows = Object.entries(personMap).map(([id, p]) => {
+    const invited = p.confirmed + p.declined + p.pending;
+    const score = invited > 0 ? Math.round(p.confirmed / invited * 100) : null;
+    // Last 8 services as dots (most recent first)
+    const recent = p.services
+      .slice().sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 12);
+    return {
+      id, name: p.name,
+      confirmed: p.confirmed, declined: p.declined, pending: p.pending,
+      invited, score,
+      recent,
+      lastServed: recent.length ? recent[0].date : null,
+      scoreClass: score === null ? 'none' : score >= 80 ? 'excellent' : score >= 60 ? 'good' : 'low',
+    };
+  });
+
+  rows.sort((a, b) => {
+    const av = a[reliSortCol] ?? -1;
+    const bv = b[reliSortCol] ?? -1;
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv));
+    return reliSortAsc ? cmp : -cmp;
+  });
+
+  const thStyle = col => `onclick="sortReliability('${col}')"
+    class="${reliSortCol === col ? 'sorted' + (reliSortAsc ? ' asc' : '') : ''}"`;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+      <div class="card card-sm" style="display:flex;align-items:center;gap:12px">
+        <span class="score-badge excellent">90%</span>
+        <span style="font-size:12px;color:var(--muted)">Excellent ≥80%</span>
+      </div>
+      <div class="card card-sm" style="display:flex;align-items:center;gap:12px">
+        <span class="score-badge good">70%</span>
+        <span style="font-size:12px;color:var(--muted)">Good 60–79%</span>
+      </div>
+      <div class="card card-sm" style="display:flex;align-items:center;gap:12px">
+        <span class="score-badge low">40%</span>
+        <span style="font-size:12px;color:var(--muted)">Low &lt;60%</span>
+      </div>
+    </div>
+    <table class="stats-table">
+    <thead><tr>
+      <th ${thStyle('name')}>Name</th>
+      <th ${thStyle('score')}>Score</th>
+      <th ${thStyle('invited')}>Invited</th>
+      <th ${thStyle('confirmed')}>Confirmed</th>
+      <th ${thStyle('declined')}>Declined</th>
+      <th ${thStyle('pending')}>Pending</th>
+      <th ${thStyle('lastServed')}>Last Served</th>
+      <th>Recent (newest→oldest)</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r => {
+        const scoreDisplay = r.score !== null
+          ? `<span class="score-badge ${r.scoreClass}">${r.score}%</span>`
+          : `<span class="score-badge none">—</span>`;
+        const dots = r.recent.map(s => {
+          const cls = s.status === 'C' ? 'confirmed' : s.status === 'D' ? 'declined' : 'pending';
+          return `<div class="streak-dot ${cls}" title="${s.date} · ${esc(s.position)}"></div>`;
+        }).join('');
+        const lastServedDisplay = r.lastServed
+          ? `<span style="font-family:var(--mono);font-size:12px">${r.lastServed}</span>`
+          : `<span style="color:var(--muted2)">—</span>`;
+        return `<tr>
+          <td style="font-weight:600">${esc(r.name)}</td>
+          <td>${scoreDisplay}</td>
+          <td class="mono" style="text-align:right">${r.invited || '—'}</td>
+          <td class="mono" style="color:var(--green);text-align:right">${r.confirmed}</td>
+          <td class="mono" style="color:var(--red);text-align:right">${r.declined}</td>
+          <td class="mono" style="color:var(--yellow);text-align:right">${r.pending}</td>
+          <td>${lastServedDisplay}</td>
+          <td><div class="streak-dots">${dots || '<span style="color:var(--muted2);font-size:11px">No data</span>'}</div></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function sortReliability(col) {
+  if (reliSortCol === col) reliSortAsc = !reliSortAsc;
+  else { reliSortCol = col; reliSortAsc = false; }
+  const months = parseInt(document.getElementById('reliability-period').value) || 6;
+  const key = String(months);
+  if (statsCache[key]) renderReliability(statsCache[key], months);
+}
+
+// ─── CSV exports ──────────────────────────────────────────────────
+function exportStatsCSV() {
+  const months = parseInt(document.getElementById('stats-period').value) || 6;
+  const data = statsCache[String(months)];
+  if (!data) { toast('Load data first.', 'error'); return; }
+  const headers = ['Name','Total','Confirmed','Pending','Declined','Avg/Month','Last Served'];
+  const rows = Object.values(data).map(p => {
+    const total = p.confirmed + p.pending + p.declined;
+    const last = p.services.length
+      ? p.services.slice().sort((a,b) => b.date.localeCompare(a.date))[0].date : '';
+    return [p.name, total, p.confirmed, p.pending, p.declined,
+      (((p.confirmed + p.pending) / months).toFixed(1)), last];
+  });
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `volunteer-stats-${months}mo.csv`;
+  a.click();
+}
+
+function exportReliabilityCSV() {
+  const months = parseInt(document.getElementById('reliability-period').value) || 6;
+  const data = statsCache[String(months)];
+  if (!data) { toast('Load data first.', 'error'); return; }
+  const headers = ['Name','Score %','Invited','Confirmed','Declined','Pending','Last Served'];
+  const rows = Object.values(data).map(p => {
+    const invited = p.confirmed + p.declined + p.pending;
+    const score = invited > 0 ? Math.round(p.confirmed / invited * 100) : '';
+    const last = p.services.length
+      ? p.services.slice().sort((a,b) => b.date.localeCompare(a.date))[0].date : '';
+    return [p.name, score, invited, p.confirmed, p.declined, p.pending, last];
+  });
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `reliability-${months}mo.csv`;
+  a.click();
 }
 </script>
 
