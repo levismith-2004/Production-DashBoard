@@ -626,15 +626,15 @@ option.primary-person::before { content: '★ '; }
   #connection-status { display: flex; }
 
   /* ── App shell adjusts for fixed topbar + bottom nav ── */
-  #app { padding-top: var(--topbar-h); padding-bottom: var(--mob-nav-h); }
-  #layout-body { height: calc(100vh - var(--topbar-h) - var(--mob-nav-h)); overflow: hidden; }
+  #app { padding-top: var(--topbar-h); }
+  #layout-body { height: calc(100vh - var(--topbar-h)); overflow: hidden; }
 
   /* ── Sidebar hidden on mobile ── */
   #sidebar { display: none !important; }
 
-  /* ── Tab content fills remaining space, with bottom padding so content clears nav ── */
-  #tab-content { padding: 14px 14px calc(var(--mob-nav-h) + 14px) 14px; overflow: auto; height: 100%; }
-  #tab-content:has(#panel-calendar.active) { padding: 10px 10px calc(var(--mob-nav-h) + 10px) 10px; }
+  /* ── Tab content: natural scroll with bottom clearance for nav ── */
+  #tab-content { padding: 14px; padding-bottom: calc(var(--mob-nav-h) + 20px); overflow-y: auto; overflow-x: hidden; height: 100%; box-sizing: border-box; }
+  #tab-content:has(#panel-calendar.active) { padding: 10px; padding-bottom: calc(var(--mob-nav-h) + 10px); }
 
   /* ── Hide desktop-only tabs on mobile (inventory stays — shown as cards) ── */
   #panel-matrix, #panel-stats,
