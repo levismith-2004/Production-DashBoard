@@ -608,6 +608,124 @@ a { color: var(--accent); text-decoration: none; }
 /* Primary badge in dropdown */
 option.primary-person::before { content: '★ '; }
 
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE  (≤ 768px)
+══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  :root { --topbar-h: 48px; --mob-nav-h: 60px; }
+
+  /* ── Topbar: hide tab bar, show brand + status only ── */
+  #tab-bar { display: none; }
+  #topbar {
+    padding: 0 14px; justify-content: space-between;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  }
+  #mob-topbar-right {
+    display: flex; align-items: center; gap: 10px;
+  }
+  #connection-status { display: flex; }
+
+  /* ── App shell adjusts for fixed topbar + bottom nav ── */
+  #app { padding-top: var(--topbar-h); padding-bottom: var(--mob-nav-h); }
+  #layout-body { height: calc(100vh - var(--topbar-h) - var(--mob-nav-h)); overflow: hidden; }
+
+  /* ── Sidebar hidden on mobile ── */
+  #sidebar { display: none !important; }
+
+  /* ── Tab content fills remaining space ── */
+  #tab-content { padding: 14px; overflow: auto; height: 100%; }
+  #tab-content:has(#panel-calendar.active) { padding: 10px; }
+
+  /* ── Hide desktop-only tabs on mobile ── */
+  #panel-matrix, #panel-inventory, #panel-stats,
+  #panel-reliability, #panel-departments { display: none !important; }
+
+  /* ── Home grid: single column ── */
+  #home-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 12px;
+  }
+  #clock-widget { grid-column: 1; grid-row: auto; }
+  #cal-widget   { grid-column: 1; grid-row: auto; }
+  #week-widget  { grid-column: 1; grid-row: auto; }
+  #gaps-widget  { grid-column: 1; grid-row: auto; }
+
+  /* ── Clock bigger and bolder on mobile ── */
+  #clock-display { font-size: 52px; }
+  #clock-display .secs { font-size: 32px; }
+
+  /* ── Week service rows stack ── */
+  .week-service-row { flex-direction: column; gap: 6px; }
+  .week-date { min-width: unset; }
+  .week-positions { gap: 6px; }
+  .pos-pill { font-size: 12px; padding: 4px 10px; }
+
+  /* ── Gap rows stack ── */
+  .gap-row { flex-direction: column; gap: 6px; align-items: flex-start; }
+  .gap-date { min-width: unset; }
+
+  /* ── Run sheet mobile ── */
+  .runsheet-item { grid-template-columns: 28px 80px 1fr; }
+  .runsheet-duration { display: none; }
+  .runsheet-header-bar { gap: 12px; padding: 10px 12px; }
+  .runsheet-header-stat-val { font-size: 13px; }
+
+  /* ── Departments mobile ── */
+  .dept-service-row { flex-wrap: wrap; gap: 6px; }
+
+  /* ── Cards ── */
+  .card { padding: 14px; }
+  .section-title { font-size: 15px; }
+
+  /* ── Calendar fills screen ── */
+  #panel-calendar { height: calc(100vh - var(--topbar-h) - var(--mob-nav-h) - 28px); }
+  .full-cal-day { padding: 4px; }
+  .full-cal-day-num { font-size: 10px; }
+  .cal-event { font-size: 9px; padding: 1px 4px; }
+
+  /* ── Settings ── */
+  .settings-section { max-width: 100%; }
+
+  /* ── Bottom nav ── */
+  #mob-nav {
+    display: flex;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: var(--mob-nav-h); z-index: 20;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 0 4px;
+  }
+  .mob-nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; padding: 6px 4px;
+    font-size: 10px; font-weight: 500; color: var(--muted);
+    border-radius: var(--radius-sm); transition: color .15s; cursor: pointer;
+    background: none; border: none;
+  }
+  .mob-nav-btn .nav-icon { font-size: 20px; line-height: 1; }
+  .mob-nav-btn.active { color: var(--accent); }
+  .mob-nav-btn.active .nav-icon { filter: drop-shadow(0 0 4px var(--accent)); }
+
+  /* ── Modals full-screen on mobile ── */
+  .modal { width: 100%; max-width: 100%; border-radius: 12px 12px 0 0;
+    position: fixed; bottom: var(--mob-nav-h); left: 0; right: 0;
+    max-height: 85vh; }
+  .modal-overlay { align-items: flex-end; }
+
+  /* ── Confirm dialog ── */
+  .confirm-box { width: calc(100% - 32px); }
+
+  /* Toasts at top on mobile */
+  #toast-container { bottom: unset; top: calc(var(--topbar-h) + 8px); right: 12px; left: 12px; }
+  .toast { min-width: unset; width: 100%; }
+}
+
+/* Desktop: hide mobile nav */
+@media (min-width: 769px) {
+  #mob-nav { display: none; }
+  #mob-topbar-right { display: none; }
+}
+
 /* ── Volunteer Stats & Reliability tabs ──────────────────────── */
 .stats-controls {
   display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
@@ -702,6 +820,13 @@ option.primary-person::before { content: '★ '; }
       </div>
       <button class="tab-btn" onclick="switchTab('settings')" data-tab="settings" style="margin-left:8px">⚙ Settings</button>
     </div>
+    <!-- Mobile: connection status + settings shown in topbar -->
+    <div id="mob-topbar-right">
+      <div id="connection-status" style="font-size:11px">
+        <div class="status-dot" id="conn-dot-mob"></div>
+      </div>
+      <button class="btn-icon" onclick="switchTab('settings')" style="font-size:18px">⚙</button>
+    </div>
   </div>
 
   <!-- Layout body -->
@@ -788,10 +913,16 @@ option.primary-person::before { content: '★ '; }
         <div class="section-header">
           <div>
             <div class="section-title">Departments</div>
-            <div class="section-sub" id="dept-person-name">Select a person from the sidebar</div>
+            <div class="section-sub" id="dept-person-name">Select a person</div>
           </div>
         </div>
-        <div id="dept-content"><div class="state-msg">Select a person from the sidebar to view their schedule.</div></div>
+        <!-- Mobile: person picker dropdown (sidebar hidden on mobile) -->
+        <div id="mob-person-picker" style="display:none;margin-bottom:14px">
+          <select onchange="onMobPersonSelect(this)" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:10px 12px;border-radius:var(--radius-sm);outline:none;font-size:14px">
+            <option value="">— Select a person —</option>
+          </select>
+        </div>
+        <div id="dept-content"><div class="state-msg">Select a person to view their schedule.</div></div>
       </div>
 
       <!-- ── Run Sheet ──────────────────────────────────────── -->
@@ -799,10 +930,16 @@ option.primary-person::before { content: '★ '; }
         <div class="section-header">
           <div>
             <div class="section-title">Run Sheet</div>
-            <div class="section-sub" id="runsheet-plan-name">Select a service from the sidebar</div>
+            <div class="section-sub" id="runsheet-plan-name">Select a service</div>
           </div>
         </div>
-        <div id="runsheet-content"><div class="state-msg">Select a service from the sidebar to load the run sheet.</div></div>
+        <!-- Mobile: service picker dropdown -->
+        <div id="mob-service-picker" style="display:none;margin-bottom:14px">
+          <select onchange="onMobServiceSelect(this)" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:10px 12px;border-radius:var(--radius-sm);outline:none;font-size:14px">
+            <option value="">— Select a service —</option>
+          </select>
+        </div>
+        <div id="runsheet-content"><div class="state-msg">Select a service to load the run sheet.</div></div>
       </div>
 
       <!-- ── Calendar ──────────────────────────────────────── -->
@@ -924,6 +1061,26 @@ option.primary-person::before { content: '★ '; }
 
     </div><!-- /tab-content -->
   </div><!-- /layout-body -->
+
+  <!-- ── Mobile bottom nav ─────────────────────────────────────── -->
+  <nav id="mob-nav">
+    <button class="mob-nav-btn active" onclick="switchTab('home')" data-mob-tab="home">
+      <span class="nav-icon">🏠</span>Home
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('runsheet')" data-mob-tab="runsheet">
+      <span class="nav-icon">📋</span>Run Sheet
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('calendar')" data-mob-tab="calendar">
+      <span class="nav-icon">📅</span>Calendar
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('departments')" data-mob-tab="departments">
+      <span class="nav-icon">👤</span>People
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('settings')" data-mob-tab="settings">
+      <span class="nav-icon">⚙️</span>Settings
+    </button>
+  </nav>
+
 </div><!-- /app -->
 
 <!-- ── Toast container ─────────────────────────────────────────── -->
@@ -1255,8 +1412,8 @@ async function connectPCO() {
       buildGapsList();
       buildMiniCal();
       buildFullCalendar();
-      // Only rebuild runsheet sidebar if user is actually on that tab
       if (currentTab === 'runsheet') buildRunsheetSidebar();
+      populateMobServicePicker();
     }).catch(e => console.warn('Background plan load error:', e));
 
   } catch (e) {
@@ -1268,16 +1425,20 @@ async function connectPCO() {
 
 function setConnStatus(state) {
   const dot = document.getElementById('conn-dot');
+  const dotMob = document.getElementById('conn-dot-mob');
   const label = document.getElementById('conn-label');
   if (state === 'connected') {
-    dot.className = 'status-dot connected';
-    label.textContent = 'Connected';
+    if (dot) dot.className = 'status-dot connected';
+    if (dotMob) dotMob.className = 'status-dot connected';
+    if (label) label.textContent = 'Connected';
   } else if (state === 'error') {
-    dot.className = 'status-dot error';
-    label.textContent = 'Error';
+    if (dot) dot.className = 'status-dot error';
+    if (dotMob) dotMob.className = 'status-dot error';
+    if (label) label.textContent = 'Error';
   } else {
-    dot.className = 'status-dot';
-    label.textContent = 'Connecting…';
+    if (dot) dot.className = 'status-dot';
+    if (dotMob) dotMob.className = 'status-dot';
+    if (label) label.textContent = 'Connecting…';
   }
 }
 
@@ -1314,6 +1475,7 @@ async function loadProductionTeam() {
   });
 
   buildSidebarPeople();
+  populateMobPersonPicker();
 }
 
 function buildSidebarPeople() {
@@ -2743,12 +2905,27 @@ async function connectFromSettings() {
 //  TABS & SIDEBAR
 // ═══════════════════════════════════════════════════════════════════
 let currentTab = 'home';
+const isMobile = () => window.innerWidth <= 768;
+
 function switchTab(tabId) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(`panel-${tabId}`).classList.add('active');
-  document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+  document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('active'));
+
+  const panel = document.getElementById(`panel-${tabId}`);
+  const desktopBtn = document.querySelector(`[data-tab="${tabId}"]`);
+  const mobBtn = document.querySelector(`[data-mob-tab="${tabId}"]`);
+
+  if (panel) panel.classList.add('active');
+  if (desktopBtn) desktopBtn.classList.add('active');
+  if (mobBtn) mobBtn.classList.add('active');
   currentTab = tabId;
+
+  // Mobile pickers
+  const mobPerson = document.getElementById('mob-person-picker');
+  const mobService = document.getElementById('mob-service-picker');
+  if (mobPerson) mobPerson.style.display = (isMobile() && tabId === 'departments') ? 'block' : 'none';
+  if (mobService) mobService.style.display = (isMobile() && tabId === 'runsheet') ? 'block' : 'none';
 
   const sidebarTitles = { matrix: 'People', departments: 'People', runsheet: 'Services' };
   const sidebarActions = { matrix: buildSidebarPeople, departments: buildSidebarPeople, runsheet: buildRunsheetSidebar };
@@ -2787,8 +2964,50 @@ function toggleSidebar() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  VOLUNTEER STATS & RELIABILITY — shared data fetch
+//  MOBILE PICKERS
 // ═══════════════════════════════════════════════════════════════════
+function populateMobPersonPicker() {
+  const sel = document.querySelector('#mob-person-picker select');
+  if (!sel || !teamPeople.length) return;
+  sel.innerHTML = '<option value="">— Select a person —</option>' +
+    teamPeople.map(p => `<option value="${p.id}" data-name="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+}
+
+function onMobPersonSelect(sel) {
+  const id = sel.value;
+  const name = sel.options[sel.selectedIndex]?.dataset.name || '';
+  if (id) loadDepartmentsForPerson(id, name);
+}
+
+function populateMobServicePicker() {
+  const sel = document.querySelector('#mob-service-picker select');
+  if (!sel) return;
+  let items = [];
+  for (const st of serviceTypes) {
+    const plans = allPlans[st.id] || [];
+    plans.forEach(p => {
+      items.push({
+        stId: st.id,
+        planId: p.id,
+        label: `${st.name} · ${p.attributes.dates || p.attributes.sort_date.slice(0,10)}`,
+        date: p.attributes.sort_date.slice(0,10),
+      });
+    });
+  }
+  items.sort((a, b) => a.date.localeCompare(b.date));
+  sel.innerHTML = '<option value="">— Select a service —</option>' +
+    items.map(i => `<option value="${i.stId}|${i.planId}">${esc(i.label)}</option>`).join('');
+}
+
+function onMobServiceSelect(sel) {
+  const val = sel.value;
+  if (!val) return;
+  const [stId, planId] = val.split('|');
+  const label = sel.options[sel.selectedIndex]?.text || '';
+  loadRunSheet(stId, planId, label);
+}
+
+
 
 // Cache: {monthsKey: {personId: {name, confirmed, pending, declined, services:[{date,pos,status}]}}}
 let statsCache = {};
