@@ -1301,11 +1301,16 @@ async function loadProductionTeam() {
     if (inc.type === 'TeamPosition') acc[inc.id] = inc.attributes.name;
     return acc;
   }, {});
+  // Person→position assignments — store ALL positions per person (someone may cover multiple)
   personTeamPosMap = {};
   (assignData.data || []).forEach(a => {
     const personId = a.relationships.person.data.id;
     const tpId = a.relationships.team_position.data.id;
-    personTeamPosMap[personId] = positionsIncluded[tpId] || '';
+    const posName = positionsIncluded[tpId] || '';
+    if (!personTeamPosMap[personId]) personTeamPosMap[personId] = [];
+    if (posName && !personTeamPosMap[personId].includes(posName)) {
+      personTeamPosMap[personId].push(posName);
+    }
   });
 
   buildSidebarPeople();
@@ -1324,10 +1329,14 @@ function buildSidebarPeople() {
 // ═══════════════════════════════════════════════════════════════════
 //  PLANS — load for calendar/home
 // ═══════════════════════════════════════════════════════════════════
+let calendarDataReady = false;
+
 async function loadAllPlansForCalendar() {
   allCalEvents = [];
-  // Load up to 20 plans per service type, but do them sequentially to avoid rate limits
-  for (const st of serviceTypes) {
+  calendarDataReady = false;
+
+  // Fetch all service types in parallel
+  await Promise.all(serviceTypes.map(async (st) => {
     try {
       const data = await pcoGet(`/services/v2/service_types/${st.id}/plans?filter=future&per_page=20&order=sort_date`);
       const plans = data.data || [];
@@ -1339,7 +1348,9 @@ async function loadAllPlansForCalendar() {
     } catch (e) {
       console.warn(`Failed to load plans for ${st.name}:`, e);
     }
-  }
+  }));
+
+  calendarDataReady = true;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1788,7 +1799,15 @@ function renderCell(stId, teamId, plan, pos, people) {
   }
 
   // Empty — show assign dropdown
-  const peopleOptions = people.map(p => {
+  // Filter to people assigned to this position (personTeamPosMap stores array of position names)
+  // Fall back to all people if no assignments exist for this position (graceful degradation)
+  const eligiblePeople = people.filter(p => {
+    const positions = personTeamPosMap[p.id] || [];
+    return positions.length === 0 || positions.includes(posName);
+  });
+  const dropdownPeople = eligiblePeople.length > 0 ? eligiblePeople : people;
+
+  const peopleOptions = dropdownPeople.map(p => {
     const alreadyRostered = (matrixMembers[planId] || []).some(m =>
       m.relationships.person.data.id === p.id &&
       m.attributes.team_position_name !== posName
@@ -2125,11 +2144,14 @@ async function runAutoRoster() {
           .map(([, v]) => v.personId)
       );
 
-      const eligible = teamPeople.filter(p =>
-        !blockedPeople.has(p.id) &&
-        !rostered.has(p.id) &&
-        !draftedInPlan.has(p.id)
-      );
+      const eligible = teamPeople.filter(p => {
+        if (blockedPeople.has(p.id)) return false;
+        if (rostered.has(p.id)) return false;
+        if (draftedInPlan.has(p.id)) return false;
+        // Must be assigned to this position (or have no assignments recorded)
+        const positions = personTeamPosMap[p.id] || [];
+        return positions.length === 0 || positions.includes(pos.name);
+      });
       if (!eligible.length) continue;
 
       // Prefer primary people
@@ -2389,13 +2411,26 @@ async function loadRunSheet(stId, planId, planLabel) {
 // ═══════════════════════════════════════════════════════════════════
 function buildFullCalendar() {
   const y = fullCalYear, m = fullCalMonth;
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  document.getElementById('full-cal-title').textContent = `${months[m]} ${y}`;
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('full-cal-title').textContent = `${monthNames[m]} ${y}`;
 
-  const dowEl = document.getElementById('full-cal-dow');
-  dowEl.innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d =>
-    `<div class="full-cal-dow">${d}</div>`
-  ).join('');
+  // Day of week headers
+  document.getElementById('full-cal-dow').innerHTML =
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d =>
+      `<div class="full-cal-dow">${d}</div>`).join('');
+
+  // If calendar data is still loading, show placeholder cells
+  if (!calendarDataReady) {
+    const first = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    let cells = '';
+    for (let i = 0; i < first; i++) cells += '<div class="full-cal-day other-month"></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells += `<div class="full-cal-day"><div class="full-cal-day-num">${d}</div></div>`;
+    }
+    document.getElementById('full-cal-grid').innerHTML = cells;
+    return;
+  }
 
   const first = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
@@ -2403,7 +2438,6 @@ function buildFullCalendar() {
   const todayStr = today.toISOString().slice(0, 10);
 
   let cells = '';
-  // Leading blanks
   for (let i = 0; i < first; i++) {
     cells += '<div class="full-cal-day other-month"></div>';
   }
@@ -2414,11 +2448,9 @@ function buildFullCalendar() {
     const evHtml = dayEvents.map(e =>
       `<div class="cal-event" title="${esc(e.name)}">${esc(e.name)}</div>`
     ).join('');
-    cells += `
-      <div class="full-cal-day${isToday ? ' today' : ''}">
-        <div class="full-cal-day-num">${d}</div>
-        ${evHtml}
-      </div>`;
+    cells += `<div class="full-cal-day${isToday ? ' today' : ''}">
+      <div class="full-cal-day-num">${d}</div>${evHtml}
+    </div>`;
   }
   document.getElementById('full-cal-grid').innerHTML = cells;
 }
