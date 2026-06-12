@@ -163,7 +163,9 @@ a { color: var(--accent); text-decoration: none; }
 #sidebar.collapsed #sidebar-title { display: none; }
 
 /* ── Tab panels ─────────────────────────────────────────────── */
-#tab-content { flex: 1; overflow: auto; padding: 24px; }
+#tab-content { flex: 1; overflow: auto; padding: 24px; min-height: 0; }
+/* Calendar panel needs to fill without tab-content padding interfering */
+#tab-content:has(#panel-calendar.active) { overflow: hidden; padding: 16px; }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
@@ -426,10 +428,23 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 /* ── Calendar tab ─────────────────────────────────────────────── */
+#panel-calendar {
+  display: none; flex-direction: column;
+  height: calc(100vh - var(--topbar-h) - 48px);
+}
+#panel-calendar.active { display: flex; }
 #full-cal-header {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-shrink: 0;
 }
 #full-cal-title { font-size: 16px; font-weight: 600; font-family: var(--mono); }
+.full-cal-dow-row {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+  margin-bottom: 4px; flex-shrink: 0;
+}
+.full-cal-day-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr; gap: 6px; flex: 1; min-height: 0;
+}
 .full-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 8px; }
 .full-cal-dow {
   text-align: center; font-size: 11px; font-weight: 600; color: var(--muted);
@@ -437,8 +452,8 @@ a { color: var(--accent); text-decoration: none; }
 }
 .full-cal-day {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); min-height: 80px; padding: 6px;
-  font-family: var(--mono);
+  border-radius: var(--radius-sm); padding: 6px; font-family: var(--mono);
+  overflow: hidden; min-height: 0;
 }
 .full-cal-day.today { border-color: var(--accent); }
 .full-cal-day.other-month { opacity: .4; }
@@ -798,8 +813,8 @@ option.primary-person::before { content: '★ '; }
           <button class="btn btn-ghost btn-sm" onclick="fullCalNext()">▶</button>
           <button class="btn btn-ghost btn-sm" onclick="fullCalToday()">Today</button>
         </div>
-        <div class="full-cal-grid" id="full-cal-dow"></div>
-        <div class="full-cal-grid" id="full-cal-grid"></div>
+        <div class="full-cal-dow-row" id="full-cal-dow"></div>
+        <div class="full-cal-day-grid" id="full-cal-grid"></div>
       </div>
 
       <!-- ── Inventory ──────────────────────────────────────── -->
