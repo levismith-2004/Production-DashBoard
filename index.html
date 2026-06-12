@@ -570,6 +570,7 @@ option.primary-person::before { content: '★ '; }
   border-bottom: 2px solid var(--border); white-space: nowrap; cursor: pointer;
   user-select: none;
 }
+.stats-table th.num { text-align: right; }
 .stats-table th:hover { color: var(--text); }
 .stats-table th.sorted { color: var(--accent); }
 .stats-table th.sorted::after { content: ' ↓'; }
@@ -2649,19 +2650,12 @@ let reliSortCol = 'score';
 let reliSortAsc = false;
 
 async function loadVolunteerStats() {
-  // Read period from whichever tab is active
   const periodEl = document.getElementById(
     currentTab === 'reliability' ? 'reliability-period' : 'stats-period'
   );
   const months = parseInt(periodEl.value) || 6;
 
-  const statsEl = document.getElementById('stats-content');
-  const relEl = document.getElementById('reliability-content');
-  const loading = '<div class="state-msg"><div class="spinner"></div><br>Loading data from PCO…</div>';
-  if (statsEl) statsEl.innerHTML = loading;
-  if (relEl) relEl.innerHTML = loading;
-
-  // Sync both period selects
+  // Sync both selects
   const sp = document.getElementById('stats-period');
   const rp = document.getElementById('reliability-period');
   if (sp) sp.value = months;
@@ -2676,10 +2670,18 @@ async function loadVolunteerStats() {
 
   if (!connected || !teamPeople.length) {
     const msg = '<div class="state-msg" style="color:var(--red)">Connect to PCO first.</div>';
-    if (statsEl) statsEl.innerHTML = msg;
-    if (relEl) relEl.innerHTML = msg;
+    document.getElementById('stats-content').innerHTML = msg;
+    document.getElementById('reliability-content').innerHTML = msg;
     return;
   }
+
+  // Show progress indicator — only update this, never the table mid-load
+  const showProgress = (msg) => {
+    const html = `<div class="state-msg"><div class="spinner"></div><br>${msg}</div>`;
+    document.getElementById('stats-content').innerHTML = html;
+    document.getElementById('reliability-content').innerHTML = html;
+  };
+  showProgress('Loading plans…');
 
   // Date range
   const now = new Date();
@@ -2687,73 +2689,89 @@ async function loadVolunteerStats() {
   since.setMonth(since.getMonth() - months);
   const sinceStr = since.toISOString().slice(0, 10);
 
+  // Only scan Sunday AM + Sunday PM — where production team actually serves
+  const SCAN_ST_IDS = ['288093', '288103'].filter(id => serviceTypes.some(s => s.id === id));
+  if (!SCAN_ST_IDS.length) {
+    showProgress('Sunday service types not found (288093 / 288103).');
+    return;
+  }
+
   // Build person map
   const personMap = {};
   teamPeople.forEach(p => {
     personMap[p.id] = { name: p.name, confirmed: 0, pending: 0, declined: 0, services: [] };
   });
 
-  // Fetch historical plans from Sunday AM + PM + all other service types
-  // Use Sunday IDs primarily (most production), but include all STs
-  const stIds = serviceTypes.map(s => s.id);
-
-  let plansFetched = 0;
-  for (const stId of stIds) {
-    try {
-      // Fetch past plans — use no filter (past plans won't show in future filter)
-      let offset = 0;
-      while (true) {
+  // Step 1: fetch all plans in range from both STs in parallel
+  showProgress('Fetching plan list…');
+  const allPlansInRange = [];
+  await Promise.all(SCAN_ST_IDS.map(async (stId) => {
+    let offset = 0;
+    while (true) {
+      try {
         const data = await pcoGet(
-          `/services/v2/service_types/${stId}/plans?order=-sort_date&per_page=50${offset ? `&offset=${offset}` : ''}`
+          `/services/v2/service_types/${stId}/plans?order=-sort_date&per_page=100${offset ? `&offset=${offset}` : ''}`
         );
         const plans = data.data || [];
         if (!plans.length) break;
-
-        let doneWithRange = false;
+        let done = false;
         for (const plan of plans) {
           const dateStr = (plan.attributes.sort_date || '').slice(0, 10);
-          if (dateStr < sinceStr) { doneWithRange = true; break; }
-
-          // Load team members for this plan
-          try {
-            const mData = await pcoGet(
-              `/services/v2/service_types/${stId}/plans/${plan.id}/team_members?per_page=100`
-            );
-            const members = mData.data || [];
-            members.forEach(m => {
-              const pid = m.relationships.person.data.id;
-              if (!personMap[pid]) return; // not production team
-              const status = m.attributes.status; // C/D/U
-              const entry = {
-                date: dateStr,
-                stId,
-                planId: plan.id,
-                position: m.attributes.team_position_name || '',
-                status,
-              };
-              personMap[pid].services.push(entry);
-              if (status === 'C') personMap[pid].confirmed++;
-              else if (status === 'D') personMap[pid].declined++;
-              else personMap[pid].pending++;
-            });
-            plansFetched++;
-          } catch (e) {
-            console.warn('Stats plan members error:', e);
-          }
+          if (dateStr < sinceStr) { done = true; break; }
+          allPlansInRange.push({ plan, stId });
         }
-        if (doneWithRange || !data.meta || !data.meta.next) break;
-        offset += 50;
+        if (done || !data.meta || !data.meta.next) break;
+        offset += 100;
+      } catch (e) {
+        console.warn(`Stats plan list error ST ${stId}:`, e);
+        break;
       }
-    } catch (e) {
-      console.warn(`Stats ST ${stId} error:`, e);
     }
+  }));
+
+  if (!allPlansInRange.length) {
+    showProgress('No plans found in this date range.');
+    return;
   }
 
+  // Step 2: fetch team_members for all plans in parallel (batched to avoid hammering)
+  const BATCH = 10;
+  let done = 0;
+  const total = allPlansInRange.length;
+
+  for (let i = 0; i < allPlansInRange.length; i += BATCH) {
+    const batch = allPlansInRange.slice(i, i + BATCH);
+    await Promise.all(batch.map(async ({ plan, stId }) => {
+      try {
+        const mData = await pcoGet(
+          `/services/v2/service_types/${stId}/plans/${plan.id}/team_members?per_page=100`
+        );
+        (mData.data || []).forEach(m => {
+          const pid = m.relationships.person.data.id;
+          if (!personMap[pid]) return;
+          const dateStr = (plan.attributes.sort_date || '').slice(0, 10);
+          const status = m.attributes.status;
+          personMap[pid].services.push({
+            date: dateStr, stId, planId: plan.id,
+            position: m.attributes.team_position_name || '', status,
+          });
+          if (status === 'C') personMap[pid].confirmed++;
+          else if (status === 'D') personMap[pid].declined++;
+          else personMap[pid].pending++;
+        });
+      } catch (e) {
+        console.warn('Stats members error:', e);
+      }
+      done++;
+    }));
+    showProgress(`Scanning plans… ${done} / ${total}`);
+  }
+
+  // Cache and do ONE final render
   statsCache[cacheKey] = personMap;
-  document.getElementById('stats-sub').textContent =
-    `Last ${months} months · ${plansFetched} plans scanned · ${teamPeople.length} people`;
-  document.getElementById('reliability-sub').textContent =
-    `Last ${months} months · ${plansFetched} plans scanned`;
+  const subText = `Last ${months} months · ${total} plans · ${teamPeople.length} people`;
+  document.getElementById('stats-sub').textContent = subText;
+  document.getElementById('reliability-sub').textContent = subText;
 
   renderStats(personMap, months);
   renderReliability(personMap, months);
@@ -2788,11 +2806,11 @@ function renderStats(personMap, months) {
   el.innerHTML = `<table class="stats-table">
     <thead><tr>
       <th ${thStyle('name')}>Name</th>
-      <th ${thStyle('total')}>Total</th>
-      <th ${thStyle('confirmed')}>Confirmed</th>
-      <th ${thStyle('pending')}>Pending</th>
-      <th ${thStyle('declined')}>Declined</th>
-      <th ${thStyle('avgPerMonth')}>Avg/Month</th>
+      <th ${thStyle('total')} style="text-align:right">Total</th>
+      <th ${thStyle('confirmed')} style="text-align:right">Confirmed</th>
+      <th ${thStyle('pending')} style="text-align:right">Pending</th>
+      <th ${thStyle('declined')} style="text-align:right">Declined</th>
+      <th ${thStyle('avgPerMonth')} style="text-align:right">Avg/Month</th>
       <th ${thStyle('lastServed')}>Last Served</th>
       <th>Breakdown</th>
     </tr></thead>
@@ -2886,10 +2904,10 @@ function renderReliability(personMap, months) {
     <thead><tr>
       <th ${thStyle('name')}>Name</th>
       <th ${thStyle('score')}>Score</th>
-      <th ${thStyle('invited')}>Invited</th>
-      <th ${thStyle('confirmed')}>Confirmed</th>
-      <th ${thStyle('declined')}>Declined</th>
-      <th ${thStyle('pending')}>Pending</th>
+      <th ${thStyle('invited')} style="text-align:right">Invited</th>
+      <th ${thStyle('confirmed')} style="text-align:right">Confirmed</th>
+      <th ${thStyle('declined')} style="text-align:right">Declined</th>
+      <th ${thStyle('pending')} style="text-align:right">Pending</th>
       <th ${thStyle('lastServed')}>Last Served</th>
       <th>Recent (newest→oldest)</th>
     </tr></thead>
