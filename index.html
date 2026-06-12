@@ -263,14 +263,15 @@ a { color: var(--accent); text-decoration: none; }
 }
 #matrix-controls select:focus { border-color: var(--accent); }
 
-/* Wrapper scrolls in both directions; table never shrinks below natural width */
-.matrix-wrapper { overflow: auto; width: 100%; max-height: calc(100vh - 200px); }
-.matrix-table { border-collapse: collapse; table-layout: fixed; width: max-content; }
+/* Wrapper scrolls in both directions */
+.matrix-wrapper { overflow: auto; width: 100%; max-height: calc(100vh - 180px); }
+/* Width set explicitly by JS to match colgroup — do NOT use max-content with table-layout:fixed */
+.matrix-table { border-collapse: collapse; table-layout: fixed; }
 .matrix-table th, .matrix-table td { border: 1px solid var(--border); padding: 0; }
 .matrix-table th {
   background: var(--surface); font-size: 11px; font-weight: 600;
   color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
-  white-space: nowrap; position: sticky; top: 0; z-index: 2;
+  white-space: nowrap; position: sticky; top: 0; z-index: 2; overflow: hidden;
 }
 .matrix-table th.pos-header {
   left: 0; z-index: 3; background: var(--surface); font-family: var(--mono);
@@ -279,11 +280,10 @@ a { color: var(--accent); text-decoration: none; }
 .col-subhead { font-size: 10px; font-weight: 400; color: var(--muted2); margin-top: 2px; }
 .matrix-table td.pos-cell {
   background: var(--surface); position: sticky; left: 0; z-index: 1;
-  padding: 0 12px; white-space: nowrap; height: 96px;
+  padding: 0 12px; white-space: nowrap; height: 110px;
   font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted);
 }
-/* Each data cell — fixed size, scrolls with table */
-.matrix-cell { padding: 0; vertical-align: top; position: relative; height: 96px; }
+.matrix-cell { padding: 0; vertical-align: top; position: relative; height: 110px; overflow: hidden; }
 
 /* Full-cell person block (confirmed / pending / declined / draft) */
 .cell-person {
@@ -1493,9 +1493,13 @@ function renderMatrixAllSunday() {
   const positions = teamPositions;
   const people = teamPeople;
 
-  let html = '<div class="matrix-wrapper"><table class="matrix-table">';
-  html += '<colgroup><col style="width:120px;min-width:120px;max-width:120px"/>'
-    + matrixPlans.map(() => '<col style="width:160px;min-width:160px;max-width:160px"/>').join('')
+  const COL_POS = 130;
+  const COL_PLAN = 170;
+  const tableWidth = COL_POS + matrixPlans.length * COL_PLAN;
+
+  let html = `<div class="matrix-wrapper"><table class="matrix-table" style="width:${tableWidth}px">`;
+  html += `<colgroup><col style="width:${COL_POS}px"/>`
+    + matrixPlans.map(() => `<col style="width:${COL_PLAN}px"/>`).join('')
     + '</colgroup>';
   html += '<thead>';
 
@@ -1539,9 +1543,13 @@ function renderMatrix(stId, teamId, positions, people) {
     return;
   }
 
-  let html = '<div class="matrix-wrapper"><table class="matrix-table">';
-  html += '<colgroup><col style="width:120px;min-width:120px;max-width:120px"/>'
-    + matrixPlans.map(() => '<col style="width:160px;min-width:160px;max-width:160px"/>').join('')
+  const COL_POS = 130;
+  const COL_PLAN = 170;
+  const tableWidth = COL_POS + matrixPlans.length * COL_PLAN;
+
+  let html = `<div class="matrix-wrapper"><table class="matrix-table" style="width:${tableWidth}px">`;
+  html += `<colgroup><col style="width:${COL_POS}px"/>`
+    + matrixPlans.map(() => `<col style="width:${COL_PLAN}px"/>`).join('')
     + '</colgroup>';
   html += '<thead>';
 
@@ -1553,8 +1561,8 @@ function renderMatrix(stId, teamId, positions, people) {
   });
   html += '</tr>';
 
-  // Row 2: Send All buttons (separate row so they don't force column widths)
-  html += '<tr><th class="pos-header" style="font-size:10px;color:var(--muted2)"></th>';
+  // Row 2: Send All buttons
+  html += '<tr><th class="pos-header"></th>';
   matrixPlans.forEach(plan => {
     html += `<th style="padding:4px 6px"><button class="btn-send-all" style="width:100%" onclick="sendAllForPlan('${stId}','${plan.id}','${teamId}')">▲ Send All</button></th>`;
   });
