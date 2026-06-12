@@ -375,17 +375,55 @@ a { color: var(--accent); text-decoration: none; }
 .dept-service-name { flex: 1; font-weight: 500; }
 
 /* ── Run Sheet tab ─────────────────────────────────────────────── */
-.runsheet-item {
-  display: flex; align-items: flex-start; gap: 14px; padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+.runsheet-header-bar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); margin-bottom: 16px;
 }
+.runsheet-header-stat { display: flex; flex-direction: column; gap: 2px; }
+.runsheet-header-stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted); font-family: var(--mono); }
+.runsheet-header-stat-val { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--accent); }
+
+.runsheet-section-header {
+  margin: 12px 0 4px; padding: 7px 12px;
+  background: var(--surface2); border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--accent);
+}
+.runsheet-item {
+  display: grid;
+  grid-template-columns: 36px 90px 1fr auto;
+  align-items: start; gap: 0;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.runsheet-item:last-child { border-bottom: none; }
 .runsheet-seq {
   font-family: var(--mono); font-size: 11px; color: var(--muted2);
-  min-width: 30px; padding-top: 2px;
+  padding-top: 3px; text-align: right; padding-right: 12px;
 }
-.runsheet-type { font-size: 11px; color: var(--muted); min-width: 80px; padding-top: 2px; }
-.runsheet-title { font-weight: 500; font-size: 13px; }
-.runsheet-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.runsheet-type-badge {
+  display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px;
+  border-radius: 10px; text-transform: uppercase; letter-spacing: .04em;
+  white-space: nowrap; font-family: var(--mono);
+}
+.runsheet-type-badge.song     { background: rgba(139,92,246,.15); color: #a78bfa; border: 1px solid rgba(139,92,246,.3); }
+.runsheet-type-badge.item     { background: var(--surface2); color: var(--muted); border: 1px solid var(--border2); }
+.runsheet-type-badge.header   { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(56,189,248,.3); }
+.runsheet-type-badge.media    { background: rgba(251,191,36,.12); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+.runsheet-type-badge.giving   { background: var(--green-glow); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+.runsheet-type-badge.prayer   { background: rgba(251,191,36,.12); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+.runsheet-body { padding: 0 12px; }
+.runsheet-title { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+.runsheet-sub { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.runsheet-key { font-family: var(--mono); font-size: 11px; color: var(--accent2);
+  display: inline-block; margin-top: 3px; padding: 1px 6px;
+  background: var(--accent-glow); border-radius: 3px; }
+.runsheet-duration {
+  font-family: var(--mono); font-size: 11px; color: var(--muted2);
+  white-space: nowrap; padding-top: 3px; text-align: right;
+}
 
 /* ── Calendar tab ─────────────────────────────────────────────── */
 #full-cal-header {
@@ -1202,7 +1240,8 @@ async function connectPCO() {
       buildGapsList();
       buildMiniCal();
       buildFullCalendar();
-      buildRunsheetSidebar();
+      // Only rebuild runsheet sidebar if user is actually on that tab
+      if (currentTab === 'runsheet') buildRunsheetSidebar();
     }).catch(e => console.warn('Background plan load error:', e));
 
   } catch (e) {
@@ -2254,19 +2293,76 @@ async function loadRunSheet(stId, planId, planLabel) {
       content.innerHTML = '<div class="state-msg">No items in this plan.</div>';
       return;
     }
-    content.innerHTML = items.map((item, i) => {
+
+    // Compute summary stats
+    const songs = items.filter(i => (i.attributes.item_type||'').toLowerCase() === 'song');
+    const totalLengthMs = items.reduce((s, i) => s + (i.attributes.length || 0), 0);
+    const fmtDuration = (ms) => {
+      if (!ms) return '—';
+      const totalSec = Math.round(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${m}:${String(s).padStart(2,'0')}`;
+    };
+
+    // Type → badge class
+    const typeClass = (t) => {
+      const l = (t||'').toLowerCase();
+      if (l === 'song') return 'song';
+      if (l === 'header') return 'header';
+      if (l.includes('media') || l.includes('video')) return 'media';
+      if (l.includes('giving') || l.includes('offering')) return 'giving';
+      if (l.includes('prayer')) return 'prayer';
+      return 'item';
+    };
+
+    // Header bar
+    let html = `<div class="runsheet-header-bar">
+      <div class="runsheet-header-stat">
+        <div class="runsheet-header-stat-label">Items</div>
+        <div class="runsheet-header-stat-val">${items.length}</div>
+      </div>
+      <div class="runsheet-header-stat">
+        <div class="runsheet-header-stat-label">Songs</div>
+        <div class="runsheet-header-stat-val">${songs.length}</div>
+      </div>
+      <div class="runsheet-header-stat">
+        <div class="runsheet-header-stat-label">Total Length</div>
+        <div class="runsheet-header-stat-val">${fmtDuration(totalLengthMs)}</div>
+      </div>
+    </div>`;
+
+    // Items — section headers break up the list
+    let seq = 0;
+    items.forEach(item => {
       const a = item.attributes;
-      return `
-        <div class="runsheet-item">
-          <div class="runsheet-seq">${String(i+1).padStart(2,'0')}</div>
-          <div class="runsheet-type">${esc(a.item_type || '')}</div>
-          <div>
-            <div class="runsheet-title">${esc(a.title || '(untitled)')}</div>
-            ${a.description ? `<div class="runsheet-sub">${esc(a.description)}</div>` : ''}
-            ${a.key_name ? `<div class="runsheet-sub" style="font-family:var(--mono);font-size:11px">Key: ${esc(a.key_name)}</div>` : ''}
-          </div>
-        </div>`;
-    }).join('');
+      const type = a.item_type || '';
+      const isHeader = type.toLowerCase() === 'header';
+
+      if (isHeader) {
+        html += `<div class="runsheet-section-header">${esc(a.title || 'Section')}</div>`;
+        return;
+      }
+
+      seq++;
+      const dur = fmtDuration(a.length);
+      const tc = typeClass(type);
+
+      html += `<div class="runsheet-item">
+        <div class="runsheet-seq">${String(seq).padStart(2,'0')}</div>
+        <div style="padding-top:2px">
+          <span class="runsheet-type-badge ${tc}">${esc(type || 'Item')}</span>
+        </div>
+        <div class="runsheet-body">
+          <div class="runsheet-title">${esc(a.title || '(untitled)')}</div>
+          ${a.description ? `<div class="runsheet-sub">${esc(a.description)}</div>` : ''}
+          ${a.key_name ? `<span class="runsheet-key">Key: ${esc(a.key_name)}</span>` : ''}
+        </div>
+        <div class="runsheet-duration">${dur !== '—' ? dur : ''}</div>
+      </div>`;
+    });
+
+    content.innerHTML = html;
   } catch (e) {
     console.warn('loadRunSheet error:', e);
     content.innerHTML = `<div class="state-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
