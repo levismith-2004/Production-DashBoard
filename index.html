@@ -188,14 +188,13 @@ a { color: var(--accent); text-decoration: none; }
 #home-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto 320px auto auto;
+  grid-template-rows: auto auto auto auto;
   gap: 16px;
-  align-items: stretch;
 }
 /* Announcements spans full width at top */
 #announcements-widget { grid-column: 1 / 4; grid-row: 1; }
-/* Clock + run sheet — col 1 row 2 */
-#clock-widget { grid-column: 1; grid-row: 2; min-height: 300px; }
+/* Clock + run sheet — col 1 row 2, fixed height so run sheet sits at bottom */
+#clock-widget { grid-column: 1; grid-row: 2; height: 320px; }
 /* Mini calendar — col 2 row 2 */
 #cal-widget { grid-column: 2; grid-row: 2; }
 /* This week — col 3 row 2 */
