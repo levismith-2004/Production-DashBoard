@@ -193,13 +193,13 @@ a { color: var(--accent); text-decoration: none; }
 }
 /* Announcements spans full width at top */
 #announcements-widget { grid-column: 1 / 4; grid-row: 1; }
-/* Clock widget — tall, fills col 1 row 2 */
+/* Clock widget — fills col 1 row 2 */
 #clock-widget { grid-column: 1; grid-row: 2; }
-/* Run sheet shortcut — short, col 1 row 3 */
+/* Run sheet shortcut — col 1 row 3, short */
 #runsheet-widget { grid-column: 1; grid-row: 3; }
-/* Mini calendar */
+/* Mini calendar — spans rows 2-3 in col 2 */
 #cal-widget { grid-column: 2; grid-row: 2 / 4; }
-/* This week */
+/* This week — spans rows 2-3 in col 3 */
 #week-widget { grid-column: 3; grid-row: 2 / 4; }
 /* Gaps — full width row 4 */
 #gaps-widget { grid-column: 1 / 4; grid-row: 4; }
@@ -210,9 +210,6 @@ a { color: var(--accent); text-decoration: none; }
 }
 #clock-display .secs { font-size: 44px; color: var(--muted); }
 #clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 10px; }
-
-/* Mini calendar */
-#cal-widget { grid-column: 2; grid-row: 2; }
 .mini-cal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; font-size: 13px; font-weight: 600;
@@ -235,7 +232,6 @@ a { color: var(--accent); text-decoration: none; }
 .cal-day.today.has-service::after { background: var(--bg); }
 
 /* This week */
-#week-widget { grid-column: 3; grid-row: 2; }
 .week-service-row {
   display: flex; align-items: flex-start; gap: 10px; padding: 8px 0;
   border-bottom: 1px solid var(--border);
@@ -270,7 +266,6 @@ a { color: var(--accent); text-decoration: none; }
 .pos-runner   .pos-dot { background: #4ADE80; }
 
 /* Gaps widget */
-#gaps-widget { grid-column: 1 / 4; grid-row: 3; }
 .gap-row {
   display: flex; align-items: center; gap: 12px; padding: 8px 12px;
   border-radius: var(--radius-sm); margin-bottom: 4px;
