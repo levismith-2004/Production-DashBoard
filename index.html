@@ -1252,7 +1252,7 @@ option.primary-person::before { content: '★ '; }
             <button class="btn btn-ghost btn-sm" onclick="sfZoomReset()">Reset View</button>
           </div>
           <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">
-            Click a node to select · Drag to move · Click two nodes to connect them · Double-click to rename · Right-click to delete
+            Click to select · Drag to move · Click a node then click another to connect · Double-click to rename · Right-click to delete
           </div>
           <div id="sf-canvas-wrap" style="position:relative;width:100%;height:calc(100vh - 280px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:default">
             <svg id="sf-svg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">
@@ -4301,7 +4301,6 @@ function sfRenderNodes() {
       el.dataset.id = node.id;
       el.innerHTML = `<div class="sf-node-type">${SF_TYPE_LABELS[node.type]||node.type}</div><div class="sf-node-label" id="sfl-${node.id}">${esc(node.label)}</div>`;
       el.addEventListener('mousedown', (e) => sfOnMouseDown(e, node.id));
-      el.addEventListener('click', (e) => { e.stopPropagation(); sfOnNodeClick(node.id); });
       el.addEventListener('dblclick', (e) => { e.stopPropagation(); sfRenameNode(node.id); });
       el.addEventListener('contextmenu', (e) => { e.preventDefault(); sfDeleteNode(node.id); });
       container.appendChild(el);
@@ -4317,10 +4316,9 @@ function sfRenderNodes() {
 
 // ── Interaction ────────────────────────────────────────────────────
 function sfOnNodeClick(nodeId) {
+  // If connecting mode — complete or cancel
   if (sfConnectingFrom) {
-    // Complete connection
     if (sfConnectingFrom !== nodeId) {
-      // Check not duplicate
       const exists = sfConnections.some(c => c.from === sfConnectingFrom && c.to === nodeId);
       if (!exists) {
         sfConnCounter++;
@@ -4333,10 +4331,11 @@ function sfOnNodeClick(nodeId) {
     sfRenderAll();
     return;
   }
-  // Select / deselect
-  sfSelectedId = sfSelectedId === nodeId ? null : nodeId;
+
+  // Not connecting — select node, show delete button
+  sfSelectedId = nodeId;
   const deleteBtn = document.getElementById('sf-delete-btn');
-  if (deleteBtn) deleteBtn.style.display = sfSelectedId ? 'inline-flex' : 'none';
+  if (deleteBtn) deleteBtn.style.display = 'inline-flex';
   sfRenderAll();
 }
 
@@ -4350,44 +4349,35 @@ function sfSelectConnection(connId) {
 function sfOnMouseDown(e, nodeId) {
   if (e.button !== 0) return;
   e.preventDefault();
+  e.stopPropagation();
   const node = sfNodes.find(n => n.id === nodeId);
   if (!node) return;
-  sfDragState = {
-    nodeId,
-    startMouseX: e.clientX,
-    startMouseY: e.clientY,
-    origX: node.x,
-    origY: node.y,
-    moved: false,
-  };
+
+  let moved = false;
+  const startX = e.clientX, startY = e.clientY;
+  const origX = node.x, origY = node.y;
 
   const onMove = (e2) => {
-    if (!sfDragState) return;
-    const dx = e2.clientX - sfDragState.startMouseX;
-    const dy = e2.clientY - sfDragState.startMouseY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) sfDragState.moved = true;
-    node.x = Math.max(0, sfDragState.origX + dx);
-    node.y = Math.max(0, sfDragState.origY + dy);
-    const el = document.getElementById('sfn-' + nodeId);
-    if (el) { el.style.left = node.x + 'px'; el.style.top = node.y + 'px'; }
-    sfRenderConnections();
+    const dx = e2.clientX - startX;
+    const dy = e2.clientY - startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+    if (moved) {
+      node.x = Math.max(0, origX + dx);
+      node.y = Math.max(0, origY + dy);
+      const el = document.getElementById('sfn-' + nodeId);
+      if (el) { el.style.left = node.x + 'px'; el.style.top = node.y + 'px'; }
+      sfRenderConnections();
+    }
   };
 
   const onUp = () => {
-    if (sfDragState && !sfDragState.moved) {
-      // Was a click, not a drag — start connecting mode
-      if (!sfConnectingFrom) {
-        sfConnectingFrom = nodeId;
-        document.getElementById('sf-cancel-btn').style.display = 'inline-flex';
-        sfRenderNodes();
-      }
-    } else if (sfDragState && sfDragState.moved) {
-      sfDirty = true;
-      sfRenderConnections();
-    }
-    sfDragState = null;
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    if (!moved) {
+      sfOnNodeClick(nodeId);
+    } else {
+      sfDirty = true;
+    }
   };
 
   document.addEventListener('mousemove', onMove);
@@ -4397,12 +4387,34 @@ function sfOnMouseDown(e, nodeId) {
 function sfRenameNode(nodeId) {
   const node = sfNodes.find(n => n.id === nodeId);
   if (!node) return;
-  const newLabel = prompt('Rename node:', node.label);
-  if (newLabel !== null && newLabel.trim()) {
-    node.label = newLabel.trim();
+  const labelEl = document.getElementById('sfl-' + nodeId);
+  if (!labelEl) return;
+
+  // Replace label div with an input
+  const input = document.createElement('input');
+  input.value = node.label;
+  input.style.cssText = 'background:transparent;border:none;outline:none;color:inherit;font-size:13px;font-weight:600;font-family:inherit;width:100%;text-align:center;padding:0;';
+  labelEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = () => {
+    const newLabel = input.value.trim() || node.label;
+    node.label = newLabel;
     sfDirty = true;
-    sfRenderNodes();
-  }
+    // Restore label div
+    const div = document.createElement('div');
+    div.id = 'sfl-' + nodeId;
+    div.className = 'sf-node-label';
+    div.textContent = newLabel;
+    input.replaceWith(div);
+  };
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = node.label; input.blur(); }
+  });
 }
 
 function sfDeleteNode(nodeId) {
