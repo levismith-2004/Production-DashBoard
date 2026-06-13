@@ -193,22 +193,24 @@ a { color: var(--accent); text-decoration: none; }
 }
 /* Announcements spans full width at top */
 #announcements-widget { grid-column: 1 / 4; grid-row: 1; }
-/* Clock + run sheet — col 1 row 2, fixed height so run sheet sits at bottom */
-#clock-widget { grid-column: 1; grid-row: 2; height: 320px; }
+/* Clock — col 1 row 2 */
+#clock-widget { grid-column: 1; grid-row: 2; }
 /* Mini calendar — col 2 row 2 */
 #cal-widget { grid-column: 2; grid-row: 2; }
 /* This week — col 3 row 2 */
 #week-widget { grid-column: 3; grid-row: 2; }
-/* Matrix shortcut — full width row 3 */
-#matrix-widget { grid-column: 1 / 4; grid-row: 3; }
+/* Run sheet shortcut — col 1 row 3 */
+#runsheet-widget { grid-column: 1; grid-row: 3; }
+/* Matrix shortcut — col 2-3 row 3 */
+#matrix-widget { grid-column: 2 / 4; grid-row: 3; }
 /* Gaps — full width row 4 */
 #gaps-widget { grid-column: 1 / 4; grid-row: 4; }
 #clock-display {
-  font-family: var(--mono); font-size: 72px; font-weight: 600;
-  color: var(--accent); letter-spacing: -3px; line-height: 1;
+  font-family: var(--mono); font-size: 96px; font-weight: 600;
+  color: var(--accent); letter-spacing: -4px; line-height: 1;
   margin-bottom: 8px;
 }
-#clock-display .secs { font-size: 44px; color: var(--muted); }
+#clock-display .secs { font-size: 56px; color: var(--muted); }
 #clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 10px; }
 .mini-cal-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -680,9 +682,10 @@ option.primary-person::before { content: '★ '; }
   }
   #announcements-widget { grid-column: 1; grid-row: auto; }
   #clock-widget    { grid-column: 1; grid-row: auto; }
-  #matrix-widget   { grid-column: 1; grid-row: auto; }
   #cal-widget      { grid-column: 1; grid-row: auto; }
   #week-widget     { grid-column: 1; grid-row: auto; }
+  #runsheet-widget { grid-column: 1; grid-row: auto; }
+  #matrix-widget   { grid-column: 1; grid-row: auto; }
   #gaps-widget     { grid-column: 1; grid-row: auto; }
   #tab-bar { display: none; }
   #topbar {
@@ -1044,21 +1047,12 @@ option.primary-person::before { content: '★ '; }
             <div id="announcements-list"><div class="ann-empty">No announcements. Click Post to add one.</div></div>
           </div>
 
-          <!-- Clock — row 2 col 1, with run sheet button at bottom -->
-          <div class="card" id="clock-widget" style="display:flex;flex-direction:column;height:100%;box-sizing:border-box">
-            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 0 16px">
-              <div id="clock-display">
-                <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
-              </div>
-              <div id="clock-date">—</div>
+          <!-- Clock — row 2 col 1 -->
+          <div class="card" id="clock-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+            <div id="clock-display">
+              <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
             </div>
-            <div style="border-top:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0">
-              <div>
-                <div class="section-sub" style="margin-bottom:3px">RUN SHEET</div>
-                <div style="font-size:12px;color:var(--muted)">View order of service</div>
-              </div>
-              <button class="btn btn-primary btn-sm" onclick="switchTab('runsheet')">Open →</button>
-            </div>
+            <div id="clock-date">—</div>
           </div>
 
           <!-- Mini calendar — row 2 col 2 -->
@@ -1073,7 +1067,16 @@ option.primary-person::before { content: '★ '; }
             <div id="week-services"><div class="state-msg">Loading…</div></div>
           </div>
 
-          <!-- Matrix shortcut — row 3 full width -->
+          <!-- Run Sheet shortcut — row 3 col 1 -->
+          <div class="card" id="runsheet-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <div>
+              <div class="section-sub" style="margin-bottom:4px">RUN SHEET</div>
+              <div style="font-size:13px;color:var(--muted)">View order of service</div>
+            </div>
+            <button class="btn btn-primary" onclick="switchTab('runsheet')">Open →</button>
+          </div>
+
+          <!-- Matrix shortcut — row 3 cols 2-3 -->
           <div class="card" id="matrix-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
             <div>
               <div class="section-sub" style="margin-bottom:4px">ROSTER MATRIX</div>
