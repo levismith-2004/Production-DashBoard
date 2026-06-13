@@ -1167,10 +1167,11 @@ option.primary-person::before { content: '★ '; }
 <div class="modal-overlay hidden" id="ann-modal">
   <div class="modal" style="width:480px">
     <div class="modal-header">
-      <div class="modal-title">Post Announcement</div>
+      <div class="modal-title" id="ann-modal-title">Post Announcement</div>
       <button class="btn btn-icon" onclick="closeAnnouncementModal()">✕</button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="ann-edit-id"/>
       <div class="form-group">
         <label class="form-label">Message *</label>
         <textarea class="form-textarea" id="ann-message" placeholder="e.g. Training session this Saturday 9am — all production team please attend" style="min-height:100px"></textarea>
@@ -3135,15 +3136,27 @@ function renderAnnouncements() {
         <div class="announcement-msg">${esc(a.message)}</div>
         <div class="announcement-meta">${esc(a.author || 'Team')} · ${a.date || ''}</div>
       </div>
-      <button class="announcement-delete" onclick="deleteAnnouncement('${a.id}')" title="Delete">✕</button>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="openAnnouncementModal('${a.id}')">Edit</button>
+        <button class="announcement-delete" onclick="deleteAnnouncement('${a.id}')" title="Delete">✕</button>
+      </div>
     </div>
   `).join('');
 }
 
-function openAnnouncementModal() {
-  document.getElementById('ann-message').value = '';
-  // Pre-fill author from localStorage if saved
+function openAnnouncementModal(editId) {
+  document.getElementById('ann-edit-id').value = editId || '';
+  document.getElementById('ann-modal-title').textContent = editId ? 'Edit Announcement' : 'Post Announcement';
   document.getElementById('ann-author').value = localStorage.getItem('ann-author') || '';
+  if (editId) {
+    const ann = announcements.find(a => a.id === editId);
+    if (ann) {
+      document.getElementById('ann-message').value = ann.message;
+      document.getElementById('ann-author').value = ann.author || '';
+    }
+  } else {
+    document.getElementById('ann-message').value = '';
+  }
   document.getElementById('ann-modal').classList.remove('hidden');
   setTimeout(() => document.getElementById('ann-message').focus(), 100);
 }
@@ -3155,29 +3168,53 @@ function closeAnnouncementModal() {
 async function postAnnouncement() {
   const message = document.getElementById('ann-message').value.trim();
   const author = document.getElementById('ann-author').value.trim();
+  const editId = document.getElementById('ann-edit-id').value;
   if (!message) { toast('Message is required.', 'error'); return; }
-  // Remember author name
   if (author) localStorage.setItem('ann-author', author);
   const now = new Date();
   const dateStr = `${now.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()]} ${now.getFullYear()}`;
-  try {
-    const res = await fetch('/announcements/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, author, date: dateStr }),
-    });
-    const data = await res.json();
-    if (data.id) {
-      announcements.unshift(data); // newest first
-      renderAnnouncements();
-      closeAnnouncementModal();
-      toast('Announcement posted!', 'success');
-    } else {
-      toast('Failed to post: ' + JSON.stringify(data), 'error');
+
+  if (editId) {
+    // Edit existing
+    try {
+      const res = await fetch(`/announcements/update/${editId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, author }),
+      });
+      const data = await res.json();
+      if (data.id) {
+        const idx = announcements.findIndex(a => a.id === editId);
+        if (idx !== -1) announcements[idx] = data;
+        renderAnnouncements();
+        closeAnnouncementModal();
+        toast('Announcement updated!', 'success');
+      } else {
+        toast('Failed to update: ' + JSON.stringify(data), 'error');
+      }
+    } catch (e) {
+      toast('Error updating: ' + e.message, 'error');
     }
-  } catch (e) {
-    console.warn('postAnnouncement error:', e);
-    toast('Error posting: ' + e.message, 'error');
+  } else {
+    // New post
+    try {
+      const res = await fetch('/announcements/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, author, date: dateStr }),
+      });
+      const data = await res.json();
+      if (data.id) {
+        announcements.unshift(data);
+        renderAnnouncements();
+        closeAnnouncementModal();
+        toast('Announcement posted!', 'success');
+      } else {
+        toast('Failed to post: ' + JSON.stringify(data), 'error');
+      }
+    } catch (e) {
+      toast('Error posting: ' + e.message, 'error');
+    }
   }
 }
 

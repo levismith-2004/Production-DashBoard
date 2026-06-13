@@ -252,6 +252,25 @@ async function announcementsDelete(id) {
   }
 }
 
+async function announcementsUpdate(id, updates) {
+  if (githubEnabled()) {
+    const { items, sha } = await githubGetFile(ANNOUNCEMENTS_PATH);
+    const idx = items.findIndex(a => a.id === id);
+    if (idx === -1) throw new Error('Not found');
+    items[idx] = { ...items[idx], ...updates, id };
+    await githubWriteFile(ANNOUNCEMENTS_PATH, items, sha, `Update announcement`);
+    return items[idx];
+  } else {
+    let items = [];
+    try { if (fs.existsSync(ANNOUNCEMENTS_FILE)) items = JSON.parse(fs.readFileSync(ANNOUNCEMENTS_FILE, 'utf8')); } catch(e) {}
+    const idx = items.findIndex(a => a.id === id);
+    if (idx === -1) throw new Error('Not found');
+    items[idx] = { ...items[idx], ...updates, id };
+    fs.writeFileSync(ANNOUNCEMENTS_FILE, JSON.stringify(items, null, 2));
+    return items[idx];
+  }
+}
+
 function newId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -433,6 +452,19 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.warn('POST /announcements/add error:', e);
       return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── PATCH /announcements/update/:id ────────────────────────────────────
+  if (pathname.startsWith('/announcements/update/') && method === 'PATCH') {
+    try {
+      const id = pathname.replace('/announcements/update/', '');
+      const body = await readBody(req);
+      const ann = await announcementsUpdate(id, JSON.parse(body));
+      return jsonResponse(res, 200, ann);
+    } catch (e) {
+      console.warn('PATCH /announcements/update error:', e);
+      return jsonResponse(res, e.message === 'Not found' ? 404 : 500, { error: e.message });
     }
   }
 
