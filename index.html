@@ -856,8 +856,66 @@ option.primary-person::before { content: '★ '; }
 .streak-dot.confirmed { background: var(--green); }
 .streak-dot.pending   { background: var(--yellow); }
 .streak-dot.declined  { background: var(--red); }
-.streak-dot.empty     { background: var(--border2); }
-</style>
+/* ── Patch Sheet ─────────────────────────────────────────────── */
+.patch-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 24px; overflow: hidden;
+}
+.patch-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border);
+}
+.patch-section-title {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--accent);
+}
+.patch-section-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.patch-subsection-header {
+  padding: 7px 16px; background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+}
+.patch-table { width: 100%; border-collapse: collapse; }
+.patch-table th {
+  text-align: left; font-size: 10px; font-weight: 700; color: var(--muted2);
+  text-transform: uppercase; letter-spacing: .06em; padding: 6px 10px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.patch-table td {
+  padding: 0; border-bottom: 1px solid var(--border); vertical-align: middle;
+}
+.patch-table tr:last-child td { border-bottom: none; }
+.patch-table tr:hover td { background: rgba(56,189,248,.04); }
+.patch-num {
+  font-family: var(--mono); font-size: 11px; color: var(--muted2);
+  padding: 8px 10px; width: 40px; text-align: right; white-space: nowrap;
+}
+.patch-input {
+  width: 100%; background: transparent; border: none; outline: none;
+  color: var(--text); font-size: 12px; padding: 8px 10px;
+  font-family: var(--font);
+}
+.patch-input:focus { background: var(--accent-glow); }
+.patch-phantom {
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px 6px;
+}
+.patch-phantom input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.patch-col-num    { width: 44px; }
+.patch-col-label  { width: 16%; }
+.patch-col-source { width: 18%; }
+.patch-col-phantom{ width: 60px; }
+.patch-col-gain   { width: 70px; }
+.patch-col-dest   { width: 20%; }
+.patch-col-notes  { width: auto; }
+.patch-dirty-indicator {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--yellow); margin-left: 8px; vertical-align: middle;
+  display: none;
+}
+.patch-dirty .patch-dirty-indicator { display: inline-block; }
 </head>
 <body>
 
@@ -889,6 +947,7 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
       <button class="tab-btn" onclick="switchTab('people')" data-tab="people">People</button>
+      <button class="tab-btn" onclick="switchTab('patch')" data-tab="patch">Patch Sheet</button>
       <div class="tab-spacer"></div>
       <div id="connection-status">
         <div class="status-dot" id="conn-dot"></div>
@@ -1106,6 +1165,22 @@ option.primary-person::before { content: '★ '; }
           <div class="section-sub" id="reliability-sub" style="margin-bottom:12px">Confirmed vs declined — who you can count on</div>
           <div id="reliability-content"><div class="state-msg">Click Refresh to load reliability data.</div></div>
         </div>
+      </div>
+
+      <!-- ── Patch Sheet ─────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-patch">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Audio Patch Sheet</div>
+            <div class="section-sub">SQ6 · GX4816 · Patch Bay — click any cell to edit</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="patch-save-status" style="font-size:12px;color:var(--muted)"></span>
+            <button class="btn btn-ghost btn-sm" onclick="savePatch()">💾 Save</button>
+            <button class="btn btn-primary btn-sm" onclick="downloadPatchPDF()">↓ PDF</button>
+          </div>
+        </div>
+        <div id="patch-container"><div class="state-msg"><div class="spinner"></div><br>Loading patch sheet…</div></div>
       </div>
 
       <!-- ── Settings ──────────────────────────────────────── -->
@@ -3099,6 +3174,7 @@ function switchTab(tabId) {
   // Lazy-load tabs
   if (tabId === 'inventory' && inventoryItems.length === 0) loadInventory();
   if (tabId === 'calendar') buildFullCalendar();
+  if (tabId === 'patch' && !patchData) loadPatch();
   if (tabId === 'people' && !statsCache['6']) { /* auto-load on first visit */ }
 }
 
@@ -3617,6 +3693,396 @@ function exportStatsCSV() {
   a.download = `volunteer-stats-${months}mo.csv`;
   a.click();
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  PATCH SHEET
+// ═══════════════════════════════════════════════════════════════════
+
+// Patch data structure — loaded from / saved to server
+let patchData = null;
+let patchDirty = false;
+
+// ── Schema: defines every section and its rows ──────────────────
+function buildDefaultPatch() {
+  const inputRow = (n) => ({ n, label:'', source:'', phantom:false, gain:'', notes:'' });
+  const outputRow = (n) => ({ n, label:'', dest:'', notes:'' });
+  const trapInputRow = (n) => ({ n, label:'', patchedTo:'', notes:'' });
+  const trapOutputRow = (id) => ({ id, label:'', patchedTo:'', notes:'' });
+
+  return {
+    version: 1,
+    updated: new Date().toISOString().slice(0,10),
+    sq6_inputs: [
+      ...Array.from({length:24}, (_,i) => inputRow(i+1)),
+      { n:'ST1-L', label:'', source:'', phantom:false, gain:'', notes:'' },
+      { n:'ST1-R', label:'', source:'', phantom:false, gain:'', notes:'' },
+      { n:'ST2-L', label:'', source:'', phantom:false, gain:'', notes:'' },
+      { n:'ST2-R', label:'', source:'', phantom:false, gain:'', notes:'' },
+    ],
+    sq6_outputs: [
+      ...Array.from({length:14}, (_,i) => outputRow(i+1)),
+      { n:'AES', label:'', dest:'', notes:'' },
+      { n:'TRS-A', label:'', dest:'', notes:'' },
+      { n:'TRS-B', label:'', dest:'', notes:'' },
+    ],
+    gx_inputs:  Array.from({length:48}, (_,i) => inputRow(i+1)),
+    gx_outputs: Array.from({length:16}, (_,i) => outputRow(i+1)),
+    traps: [
+      { name:'Trap 1', inputs: Array.from({length:12},(_,i)=>trapInputRow(i+1)),  outputs:['A','B','C','D'].map(id=>trapOutputRow(id)) },
+      { name:'Trap 2', inputs: Array.from({length:12},(_,i)=>trapInputRow(i+1)),  outputs:['A','B','C','D'].map(id=>trapOutputRow(id)) },
+      { name:'Trap 3', inputs: Array.from({length:12},(_,i)=>trapInputRow(i+1)),  outputs:['A','B','C','D'].map(id=>trapOutputRow(id)) },
+      { name:'Trap 4', inputs: Array.from({length:12},(_,i)=>trapInputRow(i+1)),  outputs:['A','B','C','D'].map(id=>trapOutputRow(id)) },
+      { name:'Trap 5', inputs: Array.from({length:12},(_,i)=>trapInputRow(i+1)),  outputs:['A','B','C','D'].map(id=>trapOutputRow(id)) },
+      { name:'Drums',  inputs: Array.from({length:24},(_,i)=>trapInputRow(i+1)),  outputs:['A','B','C','D'].map(id=>trapOutputRow(id)) },
+    ],
+  };
+}
+
+// ── Load ─────────────────────────────────────────────────────────
+async function loadPatch() {
+  try {
+    const res = await fetch('/patch');
+    const data = await res.json();
+    // If empty or missing keys, use default
+    patchData = (data && data.sq6_inputs) ? data : buildDefaultPatch();
+    renderPatch();
+  } catch (e) {
+    console.warn('loadPatch error:', e);
+    patchData = buildDefaultPatch();
+    renderPatch();
+  }
+}
+
+// ── Save ─────────────────────────────────────────────────────────
+async function savePatch() {
+  if (!patchData) return;
+  patchData.updated = new Date().toISOString().slice(0,10);
+  const statusEl = document.getElementById('patch-save-status');
+  if (statusEl) statusEl.textContent = 'Saving…';
+  try {
+    const res = await fetch('/patch/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchData),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      patchDirty = false;
+      if (statusEl) statusEl.textContent = `Saved ${patchData.updated}`;
+      toast('Patch sheet saved.', 'success');
+    } else {
+      if (statusEl) statusEl.textContent = 'Save failed';
+      toast('Save failed: ' + JSON.stringify(data), 'error');
+    }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'Save error';
+    toast('Error saving: ' + e.message, 'error');
+  }
+}
+
+// Mark dirty on any change
+function patchChanged() {
+  patchDirty = true;
+  const statusEl = document.getElementById('patch-save-status');
+  if (statusEl) statusEl.textContent = '● Unsaved changes';
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function renderPatch() {
+  const container = document.getElementById('patch-container');
+  if (!container || !patchData) return;
+
+  let html = '';
+
+  // ── Section 1: SQ6 Inputs ──────────────────────────────────────
+  html += patchSectionInput('sq6_inputs', 'SQ6 — Local Inputs',
+    '24× XLR · 2× Stereo TRS (ST1, ST2)', patchData.sq6_inputs, true);
+
+  // ── Section 2: SQ6 Outputs ─────────────────────────────────────
+  html += patchSectionOutput('sq6_outputs', 'SQ6 — Local Outputs',
+    '14× XLR · 1× AES · 2× TRS (A, B)', patchData.sq6_outputs);
+
+  // ── Section 3: GX4816 Inputs ───────────────────────────────────
+  html += patchSectionInput('gx_inputs', 'GX4816 Stage Rack — Inputs',
+    '48× inputs', patchData.gx_inputs, true);
+
+  // ── Section 4: GX4816 Outputs ──────────────────────────────────
+  html += patchSectionOutput('gx_outputs', 'GX4816 Stage Rack — Outputs',
+    '16× outputs', patchData.gx_outputs);
+
+  // ── Section 5: Patch Bay ───────────────────────────────────────
+  html += patchSectionBay();
+
+  container.innerHTML = html;
+}
+
+function patchSectionInput(key, title, sub, rows, showPhantom) {
+  const colgroup = `<colgroup>
+    <col class="patch-col-num"/>
+    <col class="patch-col-label"/>
+    <col class="patch-col-source"/>
+    ${showPhantom ? '<col class="patch-col-phantom"/>' : ''}
+    <col class="patch-col-gain"/>
+    <col class="patch-col-notes"/>
+  </colgroup>`;
+  const thead = `<tr>
+    <th style="text-align:right">#</th>
+    <th>Label</th><th>Source</th>
+    ${showPhantom ? '<th style="text-align:center">48V</th>' : ''}
+    <th>Gain</th><th>Notes</th>
+  </tr>`;
+  const rowsHtml = rows.map(r => `
+    <tr>
+      <td class="patch-num">${r.n}</td>
+      <td><input class="patch-input" value="${esc(r.label)}" placeholder="Label"
+        oninput="patchData.${key}[${rows.indexOf(r)}].label=this.value;patchChanged()"/></td>
+      <td><input class="patch-input" value="${esc(r.source)}" placeholder="Source"
+        oninput="patchData.${key}[${rows.indexOf(r)}].source=this.value;patchChanged()"/></td>
+      ${showPhantom ? `<td class="patch-phantom"><input type="checkbox" ${r.phantom?'checked':''}
+        onchange="patchData.${key}[${rows.indexOf(r)}].phantom=this.checked;patchChanged()"/></td>` : ''}
+      <td><input class="patch-input" value="${esc(r.gain)}" placeholder="—" style="max-width:70px"
+        oninput="patchData.${key}[${rows.indexOf(r)}].gain=this.value;patchChanged()"/></td>
+      <td><input class="patch-input" value="${esc(r.notes)}" placeholder="Notes"
+        oninput="patchData.${key}[${rows.indexOf(r)}].notes=this.value;patchChanged()"/></td>
+    </tr>`).join('');
+  return `<div class="patch-section">
+    <div class="patch-section-header">
+      <div>
+        <div class="patch-section-title">${title}</div>
+        <div class="patch-section-sub">${sub}</div>
+      </div>
+    </div>
+    <table class="patch-table">${colgroup}<thead>${thead}</thead><tbody>${rowsHtml}</tbody></table>
+  </div>`;
+}
+
+function patchSectionOutput(key, title, sub, rows) {
+  const colgroup = `<colgroup>
+    <col class="patch-col-num"/>
+    <col class="patch-col-label"/>
+    <col class="patch-col-dest"/>
+    <col class="patch-col-notes"/>
+  </colgroup>`;
+  const thead = `<tr>
+    <th style="text-align:right">#</th>
+    <th>Label</th><th>Destination</th><th>Notes</th>
+  </tr>`;
+  const rowsHtml = rows.map(r => `
+    <tr>
+      <td class="patch-num">${r.n}</td>
+      <td><input class="patch-input" value="${esc(r.label)}" placeholder="Label"
+        oninput="patchData.${key}[${rows.indexOf(r)}].label=this.value;patchChanged()"/></td>
+      <td><input class="patch-input" value="${esc(r.dest)}" placeholder="Destination"
+        oninput="patchData.${key}[${rows.indexOf(r)}].dest=this.value;patchChanged()"/></td>
+      <td><input class="patch-input" value="${esc(r.notes)}" placeholder="Notes"
+        oninput="patchData.${key}[${rows.indexOf(r)}].notes=this.value;patchChanged()"/></td>
+    </tr>`).join('');
+  return `<div class="patch-section">
+    <div class="patch-section-header">
+      <div>
+        <div class="patch-section-title">${title}</div>
+        <div class="patch-section-sub">${sub}</div>
+      </div>
+    </div>
+    <table class="patch-table">${colgroup}<thead>${thead}</thead><tbody>${rowsHtml}</tbody></table>
+  </div>`;
+}
+
+function patchSectionBay() {
+  let html = `<div class="patch-section">
+    <div class="patch-section-header">
+      <div>
+        <div class="patch-section-title">Patch Bay</div>
+        <div class="patch-section-sub">Trap 1–5 · Drums</div>
+      </div>
+    </div>`;
+
+  patchData.traps.forEach((trap, ti) => {
+    // Inputs subsection
+    html += `<div class="patch-subsection-header">${trap.name} — Inputs</div>
+    <table class="patch-table">
+      <colgroup>
+        <col class="patch-col-num"/>
+        <col class="patch-col-label"/>
+        <col style="width:25%"/>
+        <col class="patch-col-notes"/>
+      </colgroup>
+      <thead><tr>
+        <th style="text-align:right">#</th>
+        <th>Label</th><th>Patched To</th><th>Notes</th>
+      </tr></thead>
+      <tbody>
+      ${trap.inputs.map((r,ri) => `
+        <tr>
+          <td class="patch-num">${r.n}</td>
+          <td><input class="patch-input" value="${esc(r.label)}" placeholder="Label"
+            oninput="patchData.traps[${ti}].inputs[${ri}].label=this.value;patchChanged()"/></td>
+          <td><input class="patch-input" value="${esc(r.patchedTo)}" placeholder="e.g. GX4816 Input 14"
+            oninput="patchData.traps[${ti}].inputs[${ri}].patchedTo=this.value;patchChanged()"/></td>
+          <td><input class="patch-input" value="${esc(r.notes)}" placeholder="Notes"
+            oninput="patchData.traps[${ti}].inputs[${ri}].notes=this.value;patchChanged()"/></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+    // Outputs subsection
+    html += `<div class="patch-subsection-header">${trap.name} — Outputs</div>
+    <table class="patch-table">
+      <colgroup>
+        <col class="patch-col-num"/>
+        <col class="patch-col-label"/>
+        <col style="width:25%"/>
+        <col class="patch-col-notes"/>
+      </colgroup>
+      <thead><tr>
+        <th style="text-align:right">Out</th>
+        <th>Label</th><th>Patched To</th><th>Notes</th>
+      </tr></thead>
+      <tbody>
+      ${trap.outputs.map((r,ri) => `
+        <tr>
+          <td class="patch-num">${r.id}</td>
+          <td><input class="patch-input" value="${esc(r.label)}" placeholder="Label"
+            oninput="patchData.traps[${ti}].outputs[${ri}].label=this.value;patchChanged()"/></td>
+          <td><input class="patch-input" value="${esc(r.patchedTo)}" placeholder="e.g. SQ6 Local In 3"
+            oninput="patchData.traps[${ti}].outputs[${ri}].patchedTo=this.value;patchChanged()"/></td>
+          <td><input class="patch-input" value="${esc(r.notes)}" placeholder="Notes"
+            oninput="patchData.traps[${ti}].outputs[${ri}].notes=this.value;patchChanged()"/></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  });
+
+  html += '</div>';
+  return html;
+}
+
+// ── PDF Download ─────────────────────────────────────────────────
+function downloadPatchPDF() {
+  if (!patchData) { toast('Load patch data first.', 'error'); return; }
+  // Open print window with formatted patch sheet
+  const win = window.open('', '_blank');
+  const date = patchData.updated || new Date().toISOString().slice(0,10);
+
+  const headerHtml = (title, sub) => `
+    <div class="page-header">
+      <div class="page-header-title">${title}</div>
+      <div class="page-header-sub">${sub} &nbsp;|&nbsp; ${date}</div>
+    </div>`;
+
+  const inputTableHtml = (rows, showPhantom) => `
+    <table>
+      <thead><tr>
+        <th class="col-num">#</th>
+        <th>Label</th><th>Source</th>
+        ${showPhantom ? '<th class="col-phantom">48V</th>' : ''}
+        <th class="col-gain">Gain</th>
+        <th>Notes</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td class="col-num">${r.n}</td>
+          <td>${r.label||''}</td>
+          <td>${r.source||''}</td>
+          ${showPhantom ? `<td class="col-phantom">${r.phantom?'✓':''}</td>` : ''}
+          <td class="col-gain">${r.gain||''}</td>
+          <td>${r.notes||''}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const outputTableHtml = (rows) => `
+    <table>
+      <thead><tr>
+        <th class="col-num">#</th>
+        <th>Label</th><th>Destination</th><th>Notes</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td class="col-num">${r.n}</td>
+          <td>${r.label||''}</td>
+          <td>${r.dest||''}</td>
+          <td>${r.notes||''}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const trapTableHtml = (rows, isOutput) => `
+    <table>
+      <thead><tr>
+        <th class="col-num">${isOutput?'Out':'#'}</th>
+        <th>Label</th><th>Patched To</th><th>Notes</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td class="col-num">${isOutput?r.id:r.n}</td>
+          <td>${r.label||''}</td>
+          <td>${r.patchedTo||''}</td>
+          <td>${r.notes||''}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const trapSectionsHtml = patchData.traps.map(trap => `
+    <div class="sub-header">${trap.name} — Inputs</div>
+    ${trapTableHtml(trap.inputs, false)}
+    <div class="sub-header">${trap.name} — Outputs</div>
+    ${trapTableHtml(trap.outputs, true)}
+  `).join('');
+
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <title>Audio Patch Sheet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Arial', sans-serif; font-size: 9pt; color: #111; }
+    .page { padding: 16mm 14mm; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+    .page-header { margin-bottom: 10px; border-bottom: 2px solid #111; padding-bottom: 6px; }
+    .page-header-title { font-size: 14pt; font-weight: bold; }
+    .page-header-sub { font-size: 8pt; color: #555; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    th { background: #f0f0f0; font-size: 7pt; text-transform: uppercase;
+      letter-spacing: .05em; padding: 4px 6px; border: 1px solid #ccc;
+      text-align: left; }
+    td { padding: 3px 6px; border: 1px solid #ddd; font-size: 8.5pt; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .col-num { width: 32px; text-align: right; font-family: monospace; color: #666; }
+    .col-phantom { width: 36px; text-align: center; }
+    .col-gain { width: 48px; }
+    .sub-header { font-size: 8pt; font-weight: bold; text-transform: uppercase;
+      letter-spacing: .06em; color: #555; margin: 8px 0 4px;
+      padding: 3px 6px; background: #e8e8e8; border-left: 3px solid #333; }
+    @media print {
+      .page { padding: 12mm 10mm; }
+    }
+  </style>
+  </head><body>
+    <div class="page">
+      ${headerHtml('SQ6 — Local Inputs', '24× XLR · 2× Stereo TRS')}
+      ${inputTableHtml(patchData.sq6_inputs, true)}
+    </div>
+    <div class="page">
+      ${headerHtml('SQ6 — Local Outputs', '14× XLR · 1× AES · 2× TRS')}
+      ${outputTableHtml(patchData.sq6_outputs)}
+    </div>
+    <div class="page">
+      ${headerHtml('GX4816 Stage Rack — Inputs', '48× inputs')}
+      ${inputTableHtml(patchData.gx_inputs, true)}
+    </div>
+    <div class="page">
+      ${headerHtml('GX4816 Stage Rack — Outputs', '16× outputs')}
+      ${outputTableHtml(patchData.gx_outputs)}
+    </div>
+    <div class="page">
+      ${headerHtml('Patch Bay', 'Trap 1–5 · Drums')}
+      ${trapSectionsHtml}
+    </div>
+  </body></html>`);
+  win.document.close();
+  setTimeout(() => { win.print(); }, 500);
+}
+
+// Load patch when tab is opened
 
 function exportReliabilityCSV() {
   const months = parseInt(document.getElementById('reliability-period').value) || 6;
