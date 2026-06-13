@@ -900,8 +900,9 @@ option.primary-person::before { content: '★ '; }
 .patch-input:focus { background: var(--accent-glow); }
 .patch-phantom {
   display: flex; align-items: center; justify-content: center;
-  padding: 8px 6px;
+  padding: 8px 6px; text-align: center;
 }
+th.patch-phantom { display: table-cell; text-align: center; vertical-align: middle; }
 .patch-phantom input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
 .patch-col-num    { width: 44px; }
 .patch-col-label  { width: 16%; }
@@ -3829,7 +3830,7 @@ function patchSectionInput(key, title, sub, rows, showPhantom) {
   const thead = `<tr>
     <th style="text-align:right">#</th>
     <th>Label</th><th>Source</th>
-    ${showPhantom ? '<th style="text-align:center">48V</th>' : ''}
+    ${showPhantom ? '<th class="patch-phantom">48V</th>' : ''}
     <th>Gain</th><th>Notes</th>
   </tr>`;
   const rowsHtml = rows.map(r => `
@@ -4018,6 +4019,15 @@ function downloadPatchPDF() {
     trapTableHtml(trap.outputs, true)
   ).join('');
 
+  // One page per trap
+  var trapPages = patchData.traps.map(function(trap) {
+    return '<div class="page">' +
+      headerHtml('Patch Bay \u2014 ' + trap.name, 'Inputs & Outputs') +
+      '<div class="sub-header">Inputs<\/div>' + trapTableHtml(trap.inputs, false) +
+      '<div class="sub-header">Outputs<\/div>' + trapTableHtml(trap.outputs, true) +
+      '<\/div>';
+  }).join('');
+
   var pdfCss = '* { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: Arial, sans-serif; font-size: 9pt; color: #111; } .page { padding: 16mm 14mm; page-break-after: always; } .page:last-child { page-break-after: auto; } .page-header { margin-bottom: 10px; border-bottom: 2px solid #111; padding-bottom: 6px; } .page-header-title { font-size: 14pt; font-weight: bold; } .page-header-sub { font-size: 8pt; color: #555; margin-top: 2px; } table { width: 100%; border-collapse: collapse; margin-bottom: 8px; } th { background: #f0f0f0; font-size: 7pt; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; border: 1px solid #ccc; text-align: left; } td { padding: 3px 6px; border: 1px solid #ddd; font-size: 8.5pt; } tr:nth-child(even) td { background: #fafafa; } .col-num { width: 32px; text-align: right; font-family: monospace; color: #666; } .col-phantom { width: 36px; text-align: center; } .col-gain { width: 48px; } .sub-header { font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: .06em; color: #555; margin: 8px 0 4px; padding: 3px 6px; background: #e8e8e8; border-left: 3px solid #333; } @media print { .page { padding: 12mm 10mm; } }';
   // Note: closing tags split with + to prevent browser HTML parser from closing the script block early
   var pdfHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Audio Patch Sheet<\/title><style>' + pdfCss + '<\/style><\/head><body>';
@@ -4025,7 +4035,7 @@ function downloadPatchPDF() {
   pdfHtml += '<div class="page">' + headerHtml('SQ6 - Local Outputs', '14x XLR, 1x AES, 2x TRS') + outputTableHtml(patchData.sq6_outputs) + '<\/div>';
   pdfHtml += '<div class="page">' + headerHtml('GX4816 Stage Rack - Inputs', '48x inputs') + inputTableHtml(patchData.gx_inputs, true) + '<\/div>';
   pdfHtml += '<div class="page">' + headerHtml('GX4816 Stage Rack - Outputs', '16x outputs') + outputTableHtml(patchData.gx_outputs) + '<\/div>';
-  pdfHtml += '<div class="page">' + headerHtml('Patch Bay', 'Trap 1-5, Drums') + trapSectionsHtml + '<\/div>';
+  pdfHtml += trapPages;
   pdfHtml += '<\/body><\/html>';
 
   var blob = new Blob([pdfHtml], {type: 'text/html'});
