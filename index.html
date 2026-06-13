@@ -898,16 +898,16 @@ option.primary-person::before { content: '★ '; }
   font-family: var(--font);
 }
 .patch-input:focus { background: var(--accent-glow); }
-.patch-phantom {
-  display: flex; align-items: center; justify-content: center;
-  padding: 8px 6px; text-align: center;
+/* 48V column — both th and td use table-cell with centred content */
+.patch-phantom { text-align: center; vertical-align: middle; padding: 8px 4px; }
+.patch-phantom input[type=checkbox] {
+  width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer;
+  display: block; margin: 0 auto;
 }
-th.patch-phantom { display: table-cell; text-align: center; vertical-align: middle; }
-.patch-phantom input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
 .patch-col-num    { width: 44px; }
 .patch-col-label  { width: 16%; }
 .patch-col-source { width: 18%; }
-.patch-col-phantom{ width: 60px; }
+.patch-col-phantom{ width: 52px; }
 .patch-col-gain   { width: 70px; }
 .patch-col-dest   { width: 20%; }
 .patch-col-notes  { width: auto; }
