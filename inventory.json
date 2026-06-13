@@ -262,5 +262,15 @@
     "notes": "Lyrics Strip & Side Panels",
     "location": "",
     "retailValue": 8
+  },
+  {
+    "item": "TEST",
+    "brand": "TEST",
+    "quantity": 1,
+    "value": 100,
+    "retailValue": 0,
+    "location": "",
+    "notes": "",
+    "id": "mqbpfv3iqmnpm"
   }
 ]
