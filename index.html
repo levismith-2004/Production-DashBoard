@@ -204,12 +204,12 @@ a { color: var(--accent); text-decoration: none; }
 /* Gaps — full width row 4 */
 #gaps-widget { grid-column: 1 / 4; grid-row: 4; }
 #clock-display {
-  font-family: var(--mono); font-size: 42px; font-weight: 600;
-  color: var(--accent); letter-spacing: -1px; line-height: 1;
-  margin-bottom: 4px;
+  font-family: var(--mono); font-size: 72px; font-weight: 600;
+  color: var(--accent); letter-spacing: -3px; line-height: 1;
+  margin-bottom: 8px;
 }
-#clock-display .secs { font-size: 28px; color: var(--muted); }
-#clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
+#clock-display .secs { font-size: 44px; color: var(--muted); }
+#clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 10px; }
 
 /* Mini calendar */
 #cal-widget { grid-column: 2; grid-row: 2; }
@@ -1069,9 +1069,8 @@ option.primary-person::before { content: '★ '; }
             </div>
             <div id="gaps-list"><div class="state-msg">Loading…</div></div>
           </div>
-          <!-- Clock + Run Sheet shortcut -->
-          <div class="card" id="clock-widget" style="display:flex;flex-direction:column;justify-content:center">
-            <div class="section-sub" style="margin-bottom:10px">LIVE CLOCK</div>
+          <!-- Clock -->
+          <div class="card" id="clock-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:200px">
             <div id="clock-display">
               <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
             </div>
