@@ -196,7 +196,8 @@ a { color: var(--accent); text-decoration: none; }
 #matrix-widget        { grid-column: 3;     grid-row: 1; }
 /* Row 2: Clock+RunSheet stack (col 1) + Cal (col 2) + Week (col 3) */
 #clock-stack  { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 16px; }
-#clock-stack > .card { flex: 1; }
+#clock-stack #clock-widget { flex: 1; }
+#clock-stack #runsheet-widget { flex: 0 0 auto; }
 #cal-widget   { grid-column: 2; grid-row: 2; }
 #week-widget  { grid-column: 3; grid-row: 2; }
 /* Gaps — full width row 3 */
