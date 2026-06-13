@@ -195,14 +195,12 @@ a { color: var(--accent); text-decoration: none; }
 #announcements-widget { grid-column: 1 / 4; grid-row: 1; }
 /* Clock widget */
 #clock-widget { grid-column: 1; grid-row: 2; }
-/* Run sheet shortcut sits below clock */
-#runsheet-widget { grid-column: 1; grid-row: 3; }
 /* Mini calendar */
 #cal-widget { grid-column: 2; grid-row: 2; }
 /* This week */
 #week-widget { grid-column: 3; grid-row: 2; }
-/* Gaps — spans cols 2-3 row 3 */
-#gaps-widget { grid-column: 2 / 4; grid-row: 3; }
+/* Gaps — full width row 3 */
+#gaps-widget { grid-column: 1 / 4; grid-row: 3; }
 #clock-display {
   font-family: var(--mono); font-size: 42px; font-weight: 600;
   color: var(--accent); letter-spacing: -1px; line-height: 1;
@@ -1049,14 +1047,6 @@ option.primary-person::before { content: '★ '; }
             </div>
             <div id="announcements-list"><div class="ann-empty">No announcements. Click Post to add one.</div></div>
           </div>
-          <!-- Clock -->
-          <div class="card" id="clock-widget">
-            <div class="section-sub" style="margin-bottom:10px">LIVE CLOCK</div>
-            <div id="clock-display">
-              <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
-            </div>
-            <div id="clock-date">—</div>
-          </div>
           <!-- Mini calendar -->
           <div class="card" id="cal-widget">
             <div class="section-sub" style="margin-bottom:10px">THIS MONTH</div>
@@ -1077,13 +1067,21 @@ option.primary-person::before { content: '★ '; }
             </div>
             <div id="gaps-list"><div class="state-msg">Loading…</div></div>
           </div>
-          <!-- Run Sheet shortcut -->
-          <div class="card" id="runsheet-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <!-- Clock + Run Sheet shortcut -->
+          <div class="card" id="clock-widget" style="display:flex;flex-direction:column;justify-content:space-between">
             <div>
-              <div class="section-title" style="font-size:14px">Run Sheet</div>
-              <div class="section-sub">View order of service for any plan</div>
+              <div class="section-sub" style="margin-bottom:10px">LIVE CLOCK</div>
+              <div id="clock-display">
+                <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
+              </div>
+              <div id="clock-date">—</div>
             </div>
-            <button class="btn btn-primary" onclick="switchTab('runsheet')">Open →</button>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+              <div class="section-sub" style="margin-bottom:8px">RUN SHEET</div>
+              <button class="btn btn-ghost" style="width:100%;justify-content:space-between" onclick="switchTab('runsheet')">
+                View order of service <span>→</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
