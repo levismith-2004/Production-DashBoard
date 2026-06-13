@@ -188,13 +188,21 @@ a { color: var(--accent); text-decoration: none; }
 #home-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto auto auto;
   gap: 16px;
 }
 /* Announcements spans full width at top */
 #announcements-widget { grid-column: 1 / 4; grid-row: 1; }
 /* Clock widget */
 #clock-widget { grid-column: 1; grid-row: 2; }
+/* Mini calendar */
+#cal-widget { grid-column: 2; grid-row: 2; }
+/* This week */
+#week-widget { grid-column: 3; grid-row: 2; }
+/* Run sheet — below clock, spans col 1 only, tall */
+#runsheet-widget { grid-column: 1; grid-row: 3; }
+/* Gaps — spans cols 2-3 in row 3, and full width row 4 */
+#gaps-widget { grid-column: 2 / 4; grid-row: 3; }
 #clock-display {
   font-family: var(--mono); font-size: 42px; font-weight: 600;
   color: var(--accent); letter-spacing: -1px; line-height: 1;
@@ -679,6 +687,7 @@ option.primary-person::before { content: '★ '; }
   #clock-widget { grid-column: 1; grid-row: auto; }
   #cal-widget   { grid-column: 1; grid-row: auto; }
   #week-widget  { grid-column: 1; grid-row: auto; }
+  #runsheet-widget { grid-column: 1; grid-row: auto; }
   #gaps-widget  { grid-column: 1; grid-row: auto; }
   #tab-bar { display: none; }
   #topbar {
@@ -989,7 +998,6 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn active" onclick="switchTab('home')" data-tab="home">Home</button>
       <button class="tab-btn" onclick="switchTab('matrix')" data-tab="matrix">Matrix</button>
       <button class="tab-btn" onclick="switchTab('departments')" data-tab="departments">Departments</button>
-      <button class="tab-btn" onclick="switchTab('runsheet')" data-tab="runsheet">Run Sheet</button>
       <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
       <button class="tab-btn" onclick="switchTab('people')" data-tab="people">People</button>
@@ -1068,6 +1076,22 @@ option.primary-person::before { content: '★ '; }
               </div>
             </div>
             <div id="gaps-list"><div class="state-msg">Loading…</div></div>
+          </div>
+          <!-- Run Sheet -->
+          <div class="card" id="runsheet-widget" style="overflow:hidden">
+            <div class="section-header" style="margin-bottom:12px">
+              <div>
+                <div class="section-title">Run Sheet</div>
+                <div class="section-sub" id="home-runsheet-plan-name">Select a service</div>
+              </div>
+            </div>
+            <select id="home-runsheet-select" onchange="onHomeRunsheetSelect(this)"
+              style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:var(--radius-sm);outline:none;font-size:13px;margin-bottom:12px">
+              <option value="">— Select a service —</option>
+            </select>
+            <div id="home-runsheet-content" style="overflow-y:auto;max-height:400px">
+              <div class="state-msg" style="padding:20px">Select a service above</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1329,9 +1353,6 @@ option.primary-person::before { content: '★ '; }
   <nav id="mob-nav">
     <button class="mob-nav-btn active" onclick="switchTab('home')" data-mob-tab="home">
       <span class="nav-icon">⌂</span>Home
-    </button>
-    <button class="mob-nav-btn" onclick="switchTab('runsheet')" data-mob-tab="runsheet">
-      <span class="nav-icon">≡</span>Run Sheet
     </button>
     <button class="mob-nav-btn" onclick="switchTab('calendar')" data-mob-tab="calendar">
       <span class="nav-icon">◫</span>Calendar
@@ -1709,6 +1730,7 @@ async function connectPCO() {
       buildFullCalendar();
       if (currentTab === 'runsheet') buildRunsheetSidebar();
       populateMobServicePicker();
+      buildHomeRunsheetDropdown();
     }).catch(e => console.warn('Background plan load error:', e));
 
   } catch (e) {
@@ -2785,16 +2807,13 @@ function onMatrixClick(e) {
 //  RUN SHEET
 // ═══════════════════════════════════════════════════════════════════
 function buildRunsheetSidebar() {
-  // Populate sidebar with all known plans (flat list, most recent first)
   const content = document.getElementById('sidebar-content');
   let items = [];
   for (const st of serviceTypes) {
     const plans = allPlans[st.id] || [];
     plans.forEach(p => {
       items.push({
-        id: p.id,
-        stId: st.id,
-        stName: st.name,
+        id: p.id, stId: st.id, stName: st.name,
         date: p.attributes.sort_date.slice(0, 10),
         dates: p.attributes.dates || p.attributes.short_dates || p.attributes.sort_date.slice(0,10),
       });
@@ -2806,21 +2825,59 @@ function buildRunsheetSidebar() {
       <span>${esc(p.stName)}<br><small style="color:var(--muted2);font-size:10px">${esc(p.dates)}</small></span>
     </div>
   `).join('');
+  // Also populate home run sheet dropdown
+  buildHomeRunsheetDropdown(items);
+}
+
+function buildHomeRunsheetDropdown(items) {
+  const sel = document.getElementById('home-runsheet-select');
+  if (!sel) return;
+  if (!items) {
+    items = [];
+    for (const st of serviceTypes) {
+      const plans = allPlans[st.id] || [];
+      plans.forEach(p => items.push({
+        id: p.id, stId: st.id, stName: st.name,
+        date: p.attributes.sort_date.slice(0, 10),
+        dates: p.attributes.dates || p.attributes.short_dates || p.attributes.sort_date.slice(0,10),
+      }));
+    }
+    items.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  sel.innerHTML = '<option value="">— Select a service —</option>' +
+    items.slice(0, 40).map(p =>
+      `<option value="${p.stId}|${p.id}">${esc(p.stName)} · ${esc(p.dates)}</option>`
+    ).join('');
+  populateMobServicePicker();
+}
+
+function onHomeRunsheetSelect(sel) {
+  const val = sel.value;
+  if (!val) return;
+  const [stId, planId] = val.split('|');
+  const label = sel.options[sel.selectedIndex].text;
+  document.getElementById('home-runsheet-plan-name').textContent = label;
+  // Load into home widget content area
+  loadRunSheetInto(stId, planId, document.getElementById('home-runsheet-content'));
 }
 
 async function loadRunSheet(stId, planId, planLabel) {
-  document.getElementById('runsheet-plan-name').textContent = planLabel;
+  const el = document.getElementById('runsheet-plan-name');
+  if (el) el.textContent = planLabel;
   const content = document.getElementById('runsheet-content');
-  content.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading run sheet…</div>';
+  if (content) await loadRunSheetInto(stId, planId, content);
+}
+
+async function loadRunSheetInto(stId, planId, container) {
+  container.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading run sheet…</div>';
   try {
     const data = await pcoGet(`/services/v2/service_types/${stId}/plans/${planId}/items?per_page=100`);
     const items = data.data || [];
     if (!items.length) {
-      content.innerHTML = '<div class="state-msg">No items in this plan.</div>';
+      container.innerHTML = '<div class="state-msg">No items in this plan.</div>';
       return;
     }
 
-    // Compute summary stats
     const songs = items.filter(i => (i.attributes.item_type||'').toLowerCase() === 'song');
     const totalLengthMs = items.reduce((s, i) => s + (i.attributes.length || 0), 0);
     const fmtDuration = (ms) => {
@@ -2830,8 +2887,6 @@ async function loadRunSheet(stId, planId, planLabel) {
       const s = totalSec % 60;
       return `${m}:${String(s).padStart(2,'0')}`;
     };
-
-    // Type → badge class
     const typeClass = (t) => {
       const l = (t||'').toLowerCase();
       if (l === 'song') return 'song';
@@ -2842,7 +2897,6 @@ async function loadRunSheet(stId, planId, planLabel) {
       return 'item';
     };
 
-    // Header bar
     let html = `<div class="runsheet-header-bar">
       <div class="runsheet-header-stat">
         <div class="runsheet-header-stat-label">Items</div>
@@ -2858,27 +2912,21 @@ async function loadRunSheet(stId, planId, planLabel) {
       </div>
     </div>`;
 
-    // Items — section headers break up the list
     let seq = 0;
     items.forEach(item => {
       const a = item.attributes;
       const type = a.item_type || '';
       const isHeader = type.toLowerCase() === 'header';
-
       if (isHeader) {
         html += `<div class="runsheet-section-header">${esc(a.title || 'Section')}</div>`;
         return;
       }
-
       seq++;
       const dur = fmtDuration(a.length);
       const tc = typeClass(type);
-
       html += `<div class="runsheet-item">
         <div class="runsheet-seq">${String(seq).padStart(2,'0')}</div>
-        <div style="padding-top:2px">
-          <span class="runsheet-type-badge ${tc}">${esc(type || 'Item')}</span>
-        </div>
+        <div style="padding-top:2px"><span class="runsheet-type-badge ${tc}">${esc(type || 'Item')}</span></div>
         <div class="runsheet-body">
           <div class="runsheet-title">${esc(a.title || '(untitled)')}</div>
           ${a.description ? `<div class="runsheet-sub">${esc(a.description)}</div>` : ''}
@@ -2888,10 +2936,10 @@ async function loadRunSheet(stId, planId, planLabel) {
       </div>`;
     });
 
-    content.innerHTML = html;
+    container.innerHTML = html;
   } catch (e) {
     console.warn('loadRunSheet error:', e);
-    content.innerHTML = `<div class="state-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
+    container.innerHTML = `<div class="state-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
   }
 }
 
