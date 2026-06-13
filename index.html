@@ -188,20 +188,20 @@ a { color: var(--accent); text-decoration: none; }
 #home-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto auto auto auto;
+  grid-template-rows: auto auto auto;
   gap: 16px;
 }
 /* Announcements spans full width at top */
 #announcements-widget { grid-column: 1 / 4; grid-row: 1; }
 /* Clock widget */
 #clock-widget { grid-column: 1; grid-row: 2; }
+/* Run sheet shortcut sits below clock */
+#runsheet-widget { grid-column: 1; grid-row: 3; }
 /* Mini calendar */
 #cal-widget { grid-column: 2; grid-row: 2; }
 /* This week */
 #week-widget { grid-column: 3; grid-row: 2; }
-/* Run sheet — below clock, spans col 1 only, tall */
-#runsheet-widget { grid-column: 1; grid-row: 3; }
-/* Gaps — spans cols 2-3 in row 3, and full width row 4 */
+/* Gaps — spans cols 2-3 row 3 */
 #gaps-widget { grid-column: 2 / 4; grid-row: 3; }
 #clock-display {
   font-family: var(--mono); font-size: 42px; font-weight: 600;
@@ -1077,21 +1077,13 @@ option.primary-person::before { content: '★ '; }
             </div>
             <div id="gaps-list"><div class="state-msg">Loading…</div></div>
           </div>
-          <!-- Run Sheet -->
-          <div class="card" id="runsheet-widget" style="overflow:hidden">
-            <div class="section-header" style="margin-bottom:12px">
-              <div>
-                <div class="section-title">Run Sheet</div>
-                <div class="section-sub" id="home-runsheet-plan-name">Select a service</div>
-              </div>
+          <!-- Run Sheet shortcut -->
+          <div class="card" id="runsheet-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <div>
+              <div class="section-title" style="font-size:14px">Run Sheet</div>
+              <div class="section-sub">View order of service for any plan</div>
             </div>
-            <select id="home-runsheet-select" onchange="onHomeRunsheetSelect(this)"
-              style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:var(--radius-sm);outline:none;font-size:13px;margin-bottom:12px">
-              <option value="">— Select a service —</option>
-            </select>
-            <div id="home-runsheet-content" style="overflow-y:auto;max-height:400px">
-              <div class="state-msg" style="padding:20px">Select a service above</div>
-            </div>
+            <button class="btn btn-primary" onclick="switchTab('runsheet')">Open →</button>
           </div>
         </div>
       </div>
