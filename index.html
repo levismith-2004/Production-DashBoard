@@ -989,6 +989,7 @@ option.primary-person::before { content: '★ '; }
             <option value="20">20 plans</option>
           </select>
           <button class="btn btn-ghost btn-sm" onclick="refreshMatrix()">↺ Refresh</button>
+          <button class="btn btn-ghost btn-sm" id="clear-highlight-btn" onclick="clearMatrixHighlight()" style="display:none;color:var(--accent);border-color:var(--accent)">✕ Clear highlight</button>
         </div>
         <div id="matrix-container">
           <div class="state-msg">Select a service type to load the matrix.</div>
@@ -2459,6 +2460,12 @@ async function runAutoRoster() {
 //  DEPARTMENTS
 // ═══════════════════════════════════════════════════════════════════
 function selectPerson(personId, personName) {
+  // Toggle — clicking the same person again clears the highlight
+  if (highlightedPersonId === personId) {
+    clearMatrixHighlight();
+    return;
+  }
+
   // Mark active in sidebar
   document.querySelectorAll('#sidebar-content .sidebar-item').forEach(el => {
     el.classList.remove('active');
@@ -2469,12 +2476,10 @@ function selectPerson(personId, personName) {
   highlightedPersonId = personId;
 
   if (currentTab === 'matrix') {
-    // Stay on matrix — highlight all cells where this person appears
     highlightMatrixPerson(personId);
   } else if (currentTab === 'departments') {
     loadDepartmentsForPerson(personId, personName);
   }
-  // On other tabs, selecting a person just marks them active in the sidebar
 }
 
 function clearMatrixHighlight() {
@@ -2483,10 +2488,11 @@ function clearMatrixHighlight() {
   });
   highlightedPersonId = null;
   document.querySelectorAll('#sidebar-content .sidebar-item').forEach(el => el.classList.remove('active'));
+  const btn = document.getElementById('clear-highlight-btn');
+  if (btn) btn.style.display = 'none';
 }
 
 function highlightMatrixPerson(personId) {
-  // Remove previous highlight state
   document.querySelectorAll('.matrix-cell').forEach(cell => {
     cell.classList.remove('cell-highlighted', 'cell-dimmed');
   });
@@ -2505,11 +2511,13 @@ function highlightMatrixPerson(personId) {
   });
 
   if (anyFound) {
-    // Dim all non-highlighted cells so the highlighted ones pop
     document.querySelectorAll('.matrix-cell').forEach(cell => {
       if (!cell.classList.contains('cell-highlighted')) cell.classList.add('cell-dimmed');
     });
   }
+
+  const btn = document.getElementById('clear-highlight-btn');
+  if (btn) btn.style.display = anyFound ? 'inline-flex' : 'none';
 }
 
 async function loadDepartmentsForPerson(personId, personName) {
