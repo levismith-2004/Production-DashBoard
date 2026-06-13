@@ -191,11 +191,12 @@ a { color: var(--accent); text-decoration: none; }
   grid-template-rows: auto auto auto auto;
   gap: 16px;
 }
-/* Row 1: Announcements (cols 1-2) + Matrix (col 3) */
+/* Row 1: Announcements (cols 1-2) + Matrix (col 3) — both top-aligned, same height */
 #announcements-widget { grid-column: 1 / 3; grid-row: 1; }
-#matrix-widget        { grid-column: 3;     grid-row: 1; align-self: start; }
+#matrix-widget        { grid-column: 3;     grid-row: 1; }
 /* Row 2: Clock+RunSheet stack (col 1) + Cal (col 2) + Week (col 3) */
 #clock-stack  { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 16px; }
+#clock-stack > .card { flex: 1; }
 #cal-widget   { grid-column: 2; grid-row: 2; }
 #week-widget  { grid-column: 3; grid-row: 2; }
 /* Gaps — full width row 3 */
@@ -1051,7 +1052,7 @@ option.primary-person::before { content: '★ '; }
 
           <!-- Clock + Run Sheet stacked in col 1 -->
           <div id="clock-stack">
-            <div class="card" id="clock-widget" style="height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+            <div class="card" id="clock-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
               <div id="clock-display">
                 <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
               </div>
