@@ -8,8 +8,8 @@ const PORT = process.env.PORT || 3000;
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const PCO_APP_ID = process.env.PCO_APP_ID || '';
 const PCO_SECRET = process.env.PCO_SECRET || '';
-const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN || '';
-const AIRTABLE_BASE = process.env.AIRTABLE_BASE || '';
+
+const INVENTORY_FILE = path.join(__dirname, 'inventory.json');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,6 @@ function httpsRequest(options, body) {
   return new Promise((resolve, reject) => {
     function doRequest(opts) {
       const req = https.request(opts, (res) => {
-        // Follow redirects
         if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
           const redirectUrl = new URL(res.headers.location, `https://${opts.hostname}`);
           const redirectOpts = {
@@ -74,48 +73,24 @@ function pcoOptions(method, pcoPath, authHeader) {
   };
 }
 
-// ── Airtable helpers ────────────────────────────────────────────────────────
+// ── Inventory JSON helpers ──────────────────────────────────────────────────
 
-function airtableRequest(method, endpoint, body) {
-  const opts = {
-    hostname: 'api.airtable.com',
-    path: `/v0/${AIRTABLE_BASE}/${endpoint}`,
-    method,
-    headers: {
-      'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-  };
-  return httpsRequest(opts, body ? JSON.stringify(body) : undefined);
+function readInventory() {
+  try {
+    if (!fs.existsSync(INVENTORY_FILE)) return [];
+    return JSON.parse(fs.readFileSync(INVENTORY_FILE, 'utf8'));
+  } catch (e) {
+    console.warn('readInventory error:', e);
+    return [];
+  }
 }
 
-function mapAirtableToItem(record) {
-  const f = record.fields || {};
-  return {
-    id: record.id,
-    item: f.ITEM || '',
-    brand: f.BRAND || '',
-    category: f.CATEGORY || '',
-    value: f.VALUE || 0,
-    retailValue: f.RETAIL_VALUE || 0,
-    quantity: f.QUANTITY || 1,
-    location: f.LOCATION || '',
-    notes: f.NOTES || '',
-  };
+function writeInventory(items) {
+  fs.writeFileSync(INVENTORY_FILE, JSON.stringify(items, null, 2), 'utf8');
 }
 
-function mapItemToAirtable(item) {
-  const fields = {};
-  if (item.item !== undefined) fields.ITEM = item.item;
-  if (item.brand !== undefined) fields.BRAND = item.brand;
-  if (item.category !== undefined) fields.CATEGORY = item.category;
-  if (item.value !== undefined) fields.VALUE = Number(item.value) || 0;
-  if (item.retailValue !== undefined) fields.RETAIL_VALUE = Number(item.retailValue) || 0;
-  if (item.quantity !== undefined) fields.QUANTITY = Number(item.quantity) || 1;
-  // Only include LOCATION if non-empty (Airtable single-select rejects empty strings)
-  if (item.location) fields.LOCATION = item.location;
-  if (item.notes !== undefined) fields.NOTES = item.notes;
-  return fields;
+function newId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -230,20 +205,8 @@ const server = http.createServer(async (req, res) => {
 
   // ── GET /inventory ──────────────────────────────────────────────────────
   if (pathname === '/inventory' && method === 'GET') {
-    if (!AIRTABLE_TOKEN || !AIRTABLE_BASE) {
-      return jsonResponse(res, 200, []);
-    }
     try {
-      let allRecords = [];
-      let offset = null;
-      do {
-        const endpoint = `Inventory${offset ? `?offset=${offset}` : ''}`;
-        const result = await airtableRequest('GET', endpoint);
-        const data = JSON.parse(result.body);
-        if (data.records) allRecords = allRecords.concat(data.records.map(mapAirtableToItem));
-        offset = data.offset || null;
-      } while (offset);
-      return jsonResponse(res, 200, allRecords);
+      return jsonResponse(res, 200, readInventory());
     } catch (e) {
       console.warn('GET /inventory error:', e);
       return jsonResponse(res, 500, { error: e.message });
@@ -255,13 +218,14 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       const item = JSON.parse(body);
-      const fields = mapItemToAirtable(item);
-      const result = await airtableRequest('POST', 'Inventory', { fields });
-      const data = JSON.parse(result.body);
-      if (data.id) {
-        return jsonResponse(res, 200, mapAirtableToItem(data));
-      }
-      return jsonResponse(res, 400, data);
+      item.id = newId();
+      item.quantity = Number(item.quantity) || 1;
+      item.value = Number(item.value) || 0;
+      item.retailValue = Number(item.retailValue) || 0;
+      const items = readInventory();
+      items.push(item);
+      writeInventory(items);
+      return jsonResponse(res, 200, item);
     } catch (e) {
       console.warn('POST /inventory/add error:', e);
       return jsonResponse(res, 500, { error: e.message });
@@ -273,14 +237,16 @@ const server = http.createServer(async (req, res) => {
     try {
       const id = pathname.replace('/inventory/update/', '');
       const body = await readBody(req);
-      const item = JSON.parse(body);
-      const fields = mapItemToAirtable(item);
-      const result = await airtableRequest('PATCH', `Inventory/${id}`, { fields });
-      const data = JSON.parse(result.body);
-      if (data.id) {
-        return jsonResponse(res, 200, mapAirtableToItem(data));
-      }
-      return jsonResponse(res, 400, data);
+      const updates = JSON.parse(body);
+      const items = readInventory();
+      const idx = items.findIndex(i => i.id === id);
+      if (idx === -1) return jsonResponse(res, 404, { error: 'Not found' });
+      items[idx] = { ...items[idx], ...updates, id };
+      items[idx].quantity = Number(items[idx].quantity) || 1;
+      items[idx].value = Number(items[idx].value) || 0;
+      items[idx].retailValue = Number(items[idx].retailValue) || 0;
+      writeInventory(items);
+      return jsonResponse(res, 200, items[idx]);
     } catch (e) {
       console.warn('PATCH /inventory/update error:', e);
       return jsonResponse(res, 500, { error: e.message });
@@ -291,9 +257,11 @@ const server = http.createServer(async (req, res) => {
   if (pathname.startsWith('/inventory/delete/') && method === 'DELETE') {
     try {
       const id = pathname.replace('/inventory/delete/', '');
-      const result = await airtableRequest('DELETE', `Inventory/${id}`);
-      const data = JSON.parse(result.body);
-      return jsonResponse(res, 200, data);
+      const items = readInventory();
+      const filtered = items.filter(i => i.id !== id);
+      if (filtered.length === items.length) return jsonResponse(res, 404, { error: 'Not found' });
+      writeInventory(filtered);
+      return jsonResponse(res, 200, { deleted: true });
     } catch (e) {
       console.warn('DELETE /inventory/delete error:', e);
       return jsonResponse(res, 500, { error: e.message });
