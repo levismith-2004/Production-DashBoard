@@ -14,9 +14,11 @@ const GITHUB_TOKEN  = process.env.GITHUB_TOKEN  || '';
 const GITHUB_REPO   = process.env.GITHUB_REPO   || ''; // e.g. "yourname/production-dashboard"
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
 const GITHUB_PATH   = 'inventory.json';
+const ANNOUNCEMENTS_PATH = 'announcements.json';
 
 // Local file fallback (used if GitHub env vars not set)
 const INVENTORY_FILE = path.join(__dirname, 'inventory.json');
+const ANNOUNCEMENTS_FILE = path.join(__dirname, 'announcements.json');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -87,10 +89,10 @@ function pcoOptions(method, pcoPath, authHeader) {
 const githubEnabled = () => !!(GITHUB_TOKEN && GITHUB_REPO);
 
 // Fetch the file content + SHA from GitHub (needed for writes)
-async function githubGetFile() {
+async function githubGetFile(filePath) {
   const result = await httpsRequest({
     hostname: 'api.github.com',
-    path: `/repos/${GITHUB_REPO}/contents/${GITHUB_PATH}?ref=${GITHUB_BRANCH}`,
+    path: `/repos/${GITHUB_REPO}/contents/${filePath}?ref=${GITHUB_BRANCH}`,
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${GITHUB_TOKEN}`,
@@ -107,17 +109,13 @@ async function githubGetFile() {
 }
 
 // Write updated items array back to GitHub
-async function githubWriteFile(items, sha, message) {
+async function githubWriteFile(filePath, items, sha, message) {
   const content = Buffer.from(JSON.stringify(items, null, 2)).toString('base64');
-  const body = {
-    message: message || 'Update inventory',
-    content,
-    branch: GITHUB_BRANCH,
-  };
-  if (sha) body.sha = sha; // required for updates; omit for first-ever create
+  const body = { message: message || 'Update file', content, branch: GITHUB_BRANCH };
+  if (sha) body.sha = sha;
   const result = await httpsRequest({
     hostname: 'api.github.com',
-    path: `/repos/${GITHUB_REPO}/contents/${GITHUB_PATH}`,
+    path: `/repos/${GITHUB_REPO}/contents/${filePath}`,
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${GITHUB_TOKEN}`,
@@ -153,22 +151,21 @@ function localWrite(items) {
 
 async function inventoryRead() {
   if (githubEnabled()) {
-    const { items } = await githubGetFile();
+    const { items } = await githubGetFile(GITHUB_PATH);
     return items;
   }
   return localRead();
 }
 
-// Returns updated items list (caller uses for response)
 async function inventoryAdd(item) {
   item.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   item.quantity    = Number(item.quantity)    || 1;
   item.value       = Number(item.value)       || 0;
   item.retailValue = Number(item.retailValue) || 0;
   if (githubEnabled()) {
-    const { items, sha } = await githubGetFile();
+    const { items, sha } = await githubGetFile(GITHUB_PATH);
     items.push(item);
-    await githubWriteFile(items, sha, `Add inventory item: ${item.item}`);
+    await githubWriteFile(GITHUB_PATH, items, sha, `Add inventory item: ${item.item}`);
   } else {
     const items = localRead();
     items.push(item);
@@ -179,14 +176,14 @@ async function inventoryAdd(item) {
 
 async function inventoryUpdate(id, updates) {
   if (githubEnabled()) {
-    const { items, sha } = await githubGetFile();
+    const { items, sha } = await githubGetFile(GITHUB_PATH);
     const idx = items.findIndex(i => i.id === id);
     if (idx === -1) throw new Error('Not found');
     items[idx] = { ...items[idx], ...updates, id };
     items[idx].quantity    = Number(items[idx].quantity)    || 1;
     items[idx].value       = Number(items[idx].value)       || 0;
     items[idx].retailValue = Number(items[idx].retailValue) || 0;
-    await githubWriteFile(items, sha, `Update inventory item: ${items[idx].item}`);
+    await githubWriteFile(GITHUB_PATH, items, sha, `Update inventory item: ${items[idx].item}`);
     return items[idx];
   } else {
     const items = localRead();
@@ -203,15 +200,55 @@ async function inventoryUpdate(id, updates) {
 
 async function inventoryDelete(id) {
   if (githubEnabled()) {
-    const { items, sha } = await githubGetFile();
+    const { items, sha } = await githubGetFile(GITHUB_PATH);
     const filtered = items.filter(i => i.id !== id);
     if (filtered.length === items.length) throw new Error('Not found');
-    await githubWriteFile(filtered, sha, `Delete inventory item ${id}`);
+    await githubWriteFile(GITHUB_PATH, filtered, sha, `Delete inventory item ${id}`);
   } else {
     const items = localRead();
     const filtered = items.filter(i => i.id !== id);
     if (filtered.length === items.length) throw new Error('Not found');
     localWrite(filtered);
+  }
+}
+
+// ── Announcements CRUD ──────────────────────────────────────────────────────
+
+async function announcementsRead() {
+  if (githubEnabled()) {
+    const { items } = await githubGetFile(ANNOUNCEMENTS_PATH);
+    return items;
+  }
+  try {
+    if (!fs.existsSync(ANNOUNCEMENTS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(ANNOUNCEMENTS_FILE, 'utf8'));
+  } catch (e) { return []; }
+}
+
+async function announcementsAdd(ann) {
+  ann.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  if (githubEnabled()) {
+    const { items, sha } = await githubGetFile(ANNOUNCEMENTS_PATH);
+    items.unshift(ann);
+    await githubWriteFile(ANNOUNCEMENTS_PATH, items, sha, `Add announcement`);
+  } else {
+    let items = [];
+    try { if (fs.existsSync(ANNOUNCEMENTS_FILE)) items = JSON.parse(fs.readFileSync(ANNOUNCEMENTS_FILE, 'utf8')); } catch(e) {}
+    items.unshift(ann);
+    fs.writeFileSync(ANNOUNCEMENTS_FILE, JSON.stringify(items, null, 2));
+  }
+  return ann;
+}
+
+async function announcementsDelete(id) {
+  if (githubEnabled()) {
+    const { items, sha } = await githubGetFile(ANNOUNCEMENTS_PATH);
+    const filtered = items.filter(a => a.id !== id);
+    await githubWriteFile(ANNOUNCEMENTS_PATH, filtered, sha, `Delete announcement`);
+  } else {
+    let items = [];
+    try { if (fs.existsSync(ANNOUNCEMENTS_FILE)) items = JSON.parse(fs.readFileSync(ANNOUNCEMENTS_FILE, 'utf8')); } catch(e) {}
+    fs.writeFileSync(ANNOUNCEMENTS_FILE, JSON.stringify(items.filter(a => a.id !== id), null, 2));
   }
 }
 
@@ -374,6 +411,40 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.warn('DELETE /inventory/delete error:', e);
       return jsonResponse(res, e.message === 'Not found' ? 404 : 500, { error: e.message });
+    }
+  }
+
+  // ── GET /announcements ──────────────────────────────────────────────────
+  if (pathname === '/announcements' && method === 'GET') {
+    try {
+      return jsonResponse(res, 200, await announcementsRead());
+    } catch (e) {
+      console.warn('GET /announcements error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── POST /announcements/add ─────────────────────────────────────────────
+  if (pathname === '/announcements/add' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const ann = await announcementsAdd(JSON.parse(body));
+      return jsonResponse(res, 200, ann);
+    } catch (e) {
+      console.warn('POST /announcements/add error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── DELETE /announcements/delete/:id ────────────────────────────────────
+  if (pathname.startsWith('/announcements/delete/') && method === 'DELETE') {
+    try {
+      const id = pathname.replace('/announcements/delete/', '');
+      await announcementsDelete(id);
+      return jsonResponse(res, 200, { deleted: true });
+    } catch (e) {
+      console.warn('DELETE /announcements/delete error:', e);
+      return jsonResponse(res, 500, { error: e.message });
     }
   }
 

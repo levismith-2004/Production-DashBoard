@@ -188,11 +188,13 @@ a { color: var(--accent); text-decoration: none; }
 #home-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   gap: 16px;
 }
+/* Announcements spans full width at top */
+#announcements-widget { grid-column: 1 / 4; grid-row: 1; }
 /* Clock widget */
-#clock-widget { grid-column: 1; grid-row: 1; }
+#clock-widget { grid-column: 1; grid-row: 2; }
 #clock-display {
   font-family: var(--mono); font-size: 42px; font-weight: 600;
   color: var(--accent); letter-spacing: -1px; line-height: 1;
@@ -202,7 +204,7 @@ a { color: var(--accent); text-decoration: none; }
 #clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
 
 /* Mini calendar */
-#cal-widget { grid-column: 2; grid-row: 1; }
+#cal-widget { grid-column: 2; grid-row: 2; }
 .mini-cal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; font-size: 13px; font-weight: 600;
@@ -225,7 +227,7 @@ a { color: var(--accent); text-decoration: none; }
 .cal-day.today.has-service::after { background: var(--bg); }
 
 /* This week */
-#week-widget { grid-column: 3; grid-row: 1; }
+#week-widget { grid-column: 3; grid-row: 2; }
 .week-service-row {
   display: flex; align-items: flex-start; gap: 10px; padding: 8px 0;
   border-bottom: 1px solid var(--border);
@@ -245,7 +247,7 @@ a { color: var(--accent); text-decoration: none; }
 .pos-pill.empty { background: var(--surface2); color: var(--muted2); border: 1px solid var(--border2); }
 
 /* Gaps widget */
-#gaps-widget { grid-column: 1 / 4; grid-row: 2; }
+#gaps-widget { grid-column: 1 / 4; grid-row: 3; }
 .gap-row {
   display: flex; align-items: center; gap: 12px; padding: 8px 12px;
   border-radius: var(--radius-sm); margin-bottom: 4px;
@@ -254,6 +256,22 @@ a { color: var(--accent); text-decoration: none; }
 .gap-date { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 120px; }
 .gap-service { flex: 1; font-weight: 500; }
 .gap-positions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Announcements widget */
+#announcements-widget { grid-column: 1 / 4; grid-row: 1; }
+.announcement-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--surface2); border-left: 3px solid var(--accent);
+  margin-bottom: 8px;
+}
+.announcement-item:last-child { margin-bottom: 0; }
+.announcement-body { flex: 1; min-width: 0; }
+.announcement-msg { font-size: 14px; font-weight: 500; line-height: 1.5; }
+.announcement-meta { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+.announcement-delete { color: var(--muted2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; font-size: 16px; }
+.announcement-delete:hover { color: var(--red); background: var(--red-glow); }
+.ann-empty { font-size: 13px; color: var(--muted); font-style: italic; }
 
 /* ── Matrix tab ──────────────────────────────────────────────── */
 #matrix-controls {
@@ -904,6 +922,17 @@ option.primary-person::before { content: '★ '; }
       <!-- ── Home ──────────────────────────────────────────── -->
       <div class="tab-panel active" id="panel-home">
         <div id="home-grid">
+          <!-- Announcements -->
+          <div class="card" id="announcements-widget">
+            <div class="section-header" style="margin-bottom:12px">
+              <div>
+                <div class="section-title">📢 Team Announcements</div>
+                <div class="section-sub">Pinned messages for the production team</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Post</button>
+            </div>
+            <div id="announcements-list"><div class="ann-empty">No announcements. Click Post to add one.</div></div>
+          </div>
           <!-- Clock -->
           <div class="card" id="clock-widget">
             <div class="section-sub" style="margin-bottom:10px">LIVE CLOCK</div>
@@ -1133,6 +1162,30 @@ option.primary-person::before { content: '★ '; }
       <span class="nav-icon">⚙️</span>Settings
     </button>
   </nav>
+
+<!-- ── Announcement modal ──────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="ann-modal">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <div class="modal-title">Post Announcement</div>
+      <button class="btn btn-icon" onclick="closeAnnouncementModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Message *</label>
+        <textarea class="form-textarea" id="ann-message" placeholder="e.g. Training session this Saturday 9am — all production team please attend" style="min-height:100px"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your Name</label>
+        <input class="form-input" id="ann-author" type="text" placeholder="e.g. Levi"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAnnouncementModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="postAnnouncement()">Post</button>
+    </div>
+  </div>
+</div>
 
 </div><!-- /app -->
 
@@ -1383,6 +1436,7 @@ async function doLogin() {
         await connectPCO();
       }
       loadInventory();
+      loadAnnouncements();
     } else {
       errEl.textContent = 'Incorrect password.';
     }
@@ -3054,8 +3108,92 @@ function toggleSidebar() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  MOBILE PICKERS
+//  ANNOUNCEMENTS
 // ═══════════════════════════════════════════════════════════════════
+let announcements = [];
+
+async function loadAnnouncements() {
+  try {
+    const res = await fetch('/announcements');
+    announcements = await res.json();
+    renderAnnouncements();
+  } catch (e) {
+    console.warn('loadAnnouncements error:', e);
+  }
+}
+
+function renderAnnouncements() {
+  const el = document.getElementById('announcements-list');
+  if (!el) return;
+  if (!announcements.length) {
+    el.innerHTML = '<div class="ann-empty">No announcements. Click Post to add one.</div>';
+    return;
+  }
+  el.innerHTML = announcements.map(a => `
+    <div class="announcement-item">
+      <div class="announcement-body">
+        <div class="announcement-msg">${esc(a.message)}</div>
+        <div class="announcement-meta">${esc(a.author || 'Team')} · ${a.date || ''}</div>
+      </div>
+      <button class="announcement-delete" onclick="deleteAnnouncement('${a.id}')" title="Delete">✕</button>
+    </div>
+  `).join('');
+}
+
+function openAnnouncementModal() {
+  document.getElementById('ann-message').value = '';
+  // Pre-fill author from localStorage if saved
+  document.getElementById('ann-author').value = localStorage.getItem('ann-author') || '';
+  document.getElementById('ann-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('ann-message').focus(), 100);
+}
+
+function closeAnnouncementModal() {
+  document.getElementById('ann-modal').classList.add('hidden');
+}
+
+async function postAnnouncement() {
+  const message = document.getElementById('ann-message').value.trim();
+  const author = document.getElementById('ann-author').value.trim();
+  if (!message) { toast('Message is required.', 'error'); return; }
+  // Remember author name
+  if (author) localStorage.setItem('ann-author', author);
+  const now = new Date();
+  const dateStr = `${now.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()]} ${now.getFullYear()}`;
+  try {
+    const res = await fetch('/announcements/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, author, date: dateStr }),
+    });
+    const data = await res.json();
+    if (data.id) {
+      announcements.unshift(data); // newest first
+      renderAnnouncements();
+      closeAnnouncementModal();
+      toast('Announcement posted!', 'success');
+    } else {
+      toast('Failed to post: ' + JSON.stringify(data), 'error');
+    }
+  } catch (e) {
+    console.warn('postAnnouncement error:', e);
+    toast('Error posting: ' + e.message, 'error');
+  }
+}
+
+async function deleteAnnouncement(id) {
+  const ok = await showConfirm('Delete announcement?', 'This will remove the announcement for everyone.', 'Delete', 'btn-danger');
+  if (!ok) return;
+  try {
+    await fetch(`/announcements/delete/${id}`, { method: 'DELETE' });
+    announcements = announcements.filter(a => a.id !== id);
+    renderAnnouncements();
+    toast('Announcement deleted.', 'success');
+  } catch (e) {
+    console.warn('deleteAnnouncement error:', e);
+    toast('Error deleting: ' + e.message, 'error');
+  }
+}
 function populateMobPersonPicker() {
   const sel = document.querySelector('#mob-person-picker select');
   if (!sel || !teamPeople.length) return;
