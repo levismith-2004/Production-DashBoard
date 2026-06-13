@@ -235,26 +235,40 @@ a { color: var(--accent); text-decoration: none; }
 .week-service-row:last-child { border-bottom: none; }
 .week-date { font-family: var(--mono); font-size: 11px; color: var(--muted);
   min-width: 50px; padding-top: 2px; }
-.week-service-name { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
-.week-positions { display: flex; flex-wrap: wrap; gap: 4px; }
+.week-service-name { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+.week-positions { display: flex; flex-direction: column; gap: 5px; }
 .pos-pill {
-  font-size: 11px; padding: 2px 7px; border-radius: 10px;
-  font-family: var(--mono); white-space: nowrap;
+  font-size: 11px; padding: 4px 10px 4px 8px; border-radius: 6px;
+  font-family: var(--mono); white-space: nowrap; display: flex;
+  align-items: center; gap: 6px; border: 1px solid; border-left-width: 3px;
 }
-.pos-pill.confirmed { background: var(--green-glow); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
-.pos-pill.pending { background: var(--yellow-glow); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
-.pos-pill.declined { background: var(--red-glow); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
-.pos-pill.empty { background: var(--surface2); color: var(--muted2); border: 1px solid var(--border2); }
+/* Status colours — background tint + text */
+.pos-pill.confirmed { background: var(--green-glow); color: var(--green); border-color: rgba(74,222,128,.3); }
+.pos-pill.pending   { background: var(--yellow-glow); color: var(--yellow); border-color: rgba(251,191,36,.3); }
+.pos-pill.declined  { background: var(--red-glow); color: var(--red); border-color: rgba(248,113,113,.3); }
+.pos-pill.empty     { background: var(--surface2); color: var(--muted2); border-color: var(--border2); }
+/* Position type stripe — overrides left border colour only */
+.pos-pill.pos-sound    { border-left-color: #38BDF8; }
+.pos-pill.pos-media    { border-left-color: #A78BFA; }
+.pos-pill.pos-lighting { border-left-color: #FBBF24; }
+.pos-pill.pos-runner   { border-left-color: #4ADE80; }
+/* Dot indicator for position type */
+.pos-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.pos-sound    .pos-dot { background: #38BDF8; }
+.pos-media    .pos-dot { background: #A78BFA; }
+.pos-lighting .pos-dot { background: #FBBF24; }
+.pos-runner   .pos-dot { background: #4ADE80; }
 
 /* Gaps widget */
 #gaps-widget { grid-column: 1 / 4; grid-row: 3; }
 .gap-row {
   display: flex; align-items: center; gap: 12px; padding: 8px 12px;
   border-radius: var(--radius-sm); margin-bottom: 4px;
-  background: var(--surface2); font-size: 13px;
+  background: var(--surface2); font-size: 13px; flex-wrap: wrap;
 }
-.gap-date { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 120px; }
-.gap-service { flex: 1; font-weight: 500; }
+.gap-date { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); min-width: 80px; }
 .gap-positions { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* Announcements widget */
@@ -1784,9 +1798,15 @@ async function loadAllPlansForCalendar() {
   calendarDataReady = true;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  HOME — week services
-// ═══════════════════════════════════════════════════════════════════
+// Map position name to CSS class for colour stripe
+function posClass(posName) {
+  const n = (posName || '').toLowerCase();
+  if (n.includes('sound')) return 'pos-sound';
+  if (n.includes('media')) return 'pos-media';
+  if (n.includes('light')) return 'pos-lighting';
+  if (n.includes('runner')) return 'pos-runner';
+  return '';
+}
 async function buildWeekServices() {
   const container = document.getElementById('week-services');
   const now = new Date();
@@ -1832,11 +1852,13 @@ async function buildWeekServices() {
 
       let pillsHtml = teamPositions.map(pos => {
         const entries = posMap[pos.name] || [];
+        const pc = posClass(pos.name);
+        const dot = `<span class="pos-dot"></span>`;
         if (entries.length === 0) {
-          return `<span class="pos-pill empty">${esc(pos.name)}: —</span>`;
+          return `<span class="pos-pill empty ${pc}">${dot}${esc(pos.name)}: —</span>`;
         }
         return entries.map(e =>
-          `<span class="pos-pill ${statusLabel(e.status)}">${esc(pos.name)}: ${esc(e.name)}</span>`
+          `<span class="pos-pill ${statusLabel(e.status)} ${pc}">${dot}${esc(pos.name)}: ${esc(e.name)}</span>`
         ).join('');
       }).join('');
 
@@ -1903,11 +1925,23 @@ async function buildGapsList() {
     return;
   }
 
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function fmtGapDate(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  }
+
   container.innerHTML = gapRows.map(({ ev, needed }) => `
     <div class="gap-row">
-      <div class="gap-date">${ev.date} · ${esc(ev.name)}</div>
+      <div class="gap-date">${fmtGapDate(ev.date)}</div>
+      <div style="font-size:12px;color:var(--muted);min-width:110px">${esc(ev.name)}</div>
       <div class="gap-positions">
-        ${needed.map(n => `<span class="pos-pill empty">${esc(n.attributes.team_position_name)}</span>`).join('')}
+        ${needed.map(n => {
+          const pc = posClass(n.attributes.team_position_name);
+          return `<span class="pos-pill empty ${pc}"><span class="pos-dot"></span>${esc(n.attributes.team_position_name)}</span>`;
+        }).join('')}
       </div>
     </div>
   `).join('');
