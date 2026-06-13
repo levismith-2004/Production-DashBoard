@@ -644,9 +644,42 @@ option.primary-person::before { content: '★ '; }
    MOBILE RESPONSIVE  (≤ 768px)
 ══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  :root { --topbar-h: 48px; --mob-nav-h: 60px; }
+  :root { --topbar-h: 48px; --mob-nav-h: 72px; }
 
-  /* ── Topbar: hide tab bar, show brand + status only ── */
+  /* ── Bottom nav ── */
+  #mob-nav {
+    display: flex;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: var(--mob-nav-h); z-index: 20;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 0 2px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mob-nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 2px; padding: 4px 2px;
+    font-size: 9px; font-weight: 500; color: var(--muted);
+    border-radius: var(--radius-sm); transition: color .15s; cursor: pointer;
+    background: none; border: none; min-width: 0;
+  }
+  .mob-nav-btn .nav-icon { font-size: 18px; line-height: 1; }
+  .mob-nav-btn.active { color: var(--accent); }
+
+  /* ── Hide desktop-only tabs on mobile (inventory stays — shown as cards) ── */
+  #panel-matrix, #panel-stats, #panel-people,
+  #panel-reliability { display: none !important; }
+
+  /* ── Home grid: single column ── */
+  #home-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 12px;
+  }
+  #announcements-widget { grid-column: 1; grid-row: auto; }
+  #clock-widget { grid-column: 1; grid-row: auto; }
+  #cal-widget   { grid-column: 1; grid-row: auto; }
+  #week-widget  { grid-column: 1; grid-row: auto; }
+  #gaps-widget  { grid-column: 1; grid-row: auto; }
   #tab-bar { display: none; }
   #topbar {
     padding: 0 14px; justify-content: space-between;
@@ -671,18 +704,14 @@ option.primary-person::before { content: '★ '; }
   #sidebar { display: none !important; }
 
   /* ── Tab content: natural document flow, bottom pad clears fixed nav ── */
-  #tab-content { padding: 14px; padding-bottom: calc(var(--mob-nav-h) + 14px);
+  #tab-content { padding: 14px; padding-bottom: calc(var(--mob-nav-h) + 20px);
     overflow: visible; height: auto; min-height: 0; }
   #tab-content:has(#panel-calendar.active) { padding: 10px; padding-bottom: calc(var(--mob-nav-h) + 10px); }
 
   /* ── Panels: block layout, natural height ── */
   .tab-panel.active { display: block; height: auto; }
 
-  /* ── Hide desktop-only tabs on mobile (inventory stays — shown as cards) ── */
-  #panel-matrix, #panel-stats, #panel-people,
-  #panel-reliability, #panel-departments { display: none !important; }
-
-  /* ── Inventory: hide desktop table, show mobile cards ── */
+  /* ── Clock bigger and bolder on mobile ── */
   .inv-totals { gap: 14px; padding: 10px 12px; }
   .inv-total-value { font-size: 14px; }
   #inventory-controls { flex-wrap: nowrap; gap: 8px; }
@@ -717,18 +746,6 @@ option.primary-person::before { content: '★ '; }
   .mob-inv-card-actions { display: flex; gap: 8px; margin-top: 4px; }
   .mob-inv-card-actions .btn { flex: 1; justify-content: center; padding: 9px; font-size: 13px; }
 
-  /* ── Home grid: single column ── */
-  #home-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    gap: 12px;
-  }
-  #announcements-widget { grid-column: 1; grid-row: auto; }
-  #clock-widget { grid-column: 1; grid-row: auto; }
-  #cal-widget   { grid-column: 1; grid-row: auto; }
-  #week-widget  { grid-column: 1; grid-row: auto; }
-  #gaps-widget  { display: none; } /* redundant on mobile — week widget covers it */
-
   /* ── Clock bigger and bolder on mobile ── */
   #clock-display { font-size: 52px; }
   #clock-display .secs { font-size: 32px; }
@@ -760,29 +777,11 @@ option.primary-person::before { content: '★ '; }
   #panel-calendar { height: calc(100vh - var(--topbar-h) - var(--mob-nav-h) - 28px); }
   .full-cal-day { padding: 4px; }
   .full-cal-day-num { font-size: 10px; }
-  .cal-event { font-size: 9px; padding: 1px 4px; }
+  .cal-event { font-size: 9px; padding: 1px 3px; white-space: normal; overflow: visible;
+    text-overflow: unset; word-break: break-word; line-height: 1.2; }
 
   /* ── Settings ── */
   .settings-section { max-width: 100%; }
-
-  /* ── Bottom nav ── */
-  #mob-nav {
-    display: flex;
-    position: fixed; bottom: 0; left: 0; right: 0;
-    height: var(--mob-nav-h); z-index: 20;
-    background: var(--surface); border-top: 1px solid var(--border);
-    padding: 0 4px;
-  }
-  .mob-nav-btn {
-    flex: 1; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 3px; padding: 6px 4px;
-    font-size: 10px; font-weight: 500; color: var(--muted);
-    border-radius: var(--radius-sm); transition: color .15s; cursor: pointer;
-    background: none; border: none;
-  }
-  .mob-nav-btn .nav-icon { font-size: 20px; line-height: 1; }
-  .mob-nav-btn.active { color: var(--accent); }
-  .mob-nav-btn.active .nav-icon { filter: drop-shadow(0 0 4px var(--accent)); }
 
   /* ── Modals full-screen on mobile ── */
   .modal { width: 100%; max-width: 100%; border-radius: 12px 12px 0 0;
@@ -1323,19 +1322,25 @@ option.primary-person::before { content: '★ '; }
   <!-- ── Mobile bottom nav ─────────────────────────────────────── -->
   <nav id="mob-nav">
     <button class="mob-nav-btn active" onclick="switchTab('home')" data-mob-tab="home">
-      <span class="nav-icon">🏠</span>Home
+      <span class="nav-icon">⌂</span>Home
     </button>
     <button class="mob-nav-btn" onclick="switchTab('runsheet')" data-mob-tab="runsheet">
-      <span class="nav-icon">📋</span>Run Sheet
+      <span class="nav-icon">≡</span>Run Sheet
     </button>
     <button class="mob-nav-btn" onclick="switchTab('calendar')" data-mob-tab="calendar">
-      <span class="nav-icon">📅</span>Calendar
+      <span class="nav-icon">◫</span>Calendar
     </button>
     <button class="mob-nav-btn" onclick="switchTab('inventory')" data-mob-tab="inventory">
-      <span class="nav-icon">📦</span>Inventory
+      <span class="nav-icon">▤</span>Inventory
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('departments')" data-mob-tab="departments">
+      <span class="nav-icon">◉</span>People
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('audio')" data-mob-tab="audio">
+      <span class="nav-icon">◈</span>Audio
     </button>
     <button class="mob-nav-btn" onclick="switchTab('settings')" data-mob-tab="settings">
-      <span class="nav-icon">⚙️</span>Settings
+      <span class="nav-icon">⚙</span>Settings
     </button>
   </nav>
 
