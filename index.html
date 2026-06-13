@@ -723,10 +723,11 @@ option.primary-person::before { content: '★ '; }
     grid-template-rows: auto;
     gap: 12px;
   }
+  #announcements-widget { grid-column: 1; grid-row: auto; }
   #clock-widget { grid-column: 1; grid-row: auto; }
   #cal-widget   { grid-column: 1; grid-row: auto; }
   #week-widget  { grid-column: 1; grid-row: auto; }
-  #gaps-widget  { grid-column: 1; grid-row: auto; }
+  #gaps-widget  { display: none; } /* redundant on mobile — week widget covers it */
 
   /* ── Clock bigger and bolder on mobile ── */
   #clock-display { font-size: 52px; }
