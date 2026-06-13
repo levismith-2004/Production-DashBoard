@@ -190,11 +190,12 @@ a { color: var(--accent); text-decoration: none; }
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: auto auto auto auto;
   gap: 16px;
+  align-items: stretch;
 }
 /* Announcements spans full width at top */
 #announcements-widget { grid-column: 1 / 4; grid-row: 1; }
 /* Clock + run sheet — col 1 row 2 */
-#clock-widget { grid-column: 1; grid-row: 2; }
+#clock-widget { grid-column: 1; grid-row: 2; min-height: 300px; }
 /* Mini calendar — col 2 row 2 */
 #cal-widget { grid-column: 2; grid-row: 2; }
 /* This week — col 3 row 2 */
@@ -1045,7 +1046,7 @@ option.primary-person::before { content: '★ '; }
           </div>
 
           <!-- Clock — row 2 col 1, with run sheet button at bottom -->
-          <div class="card" id="clock-widget" style="display:flex;flex-direction:column;gap:0">
+          <div class="card" id="clock-widget" style="display:flex;flex-direction:column;height:100%;box-sizing:border-box">
             <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 0 16px">
               <div id="clock-display">
                 <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
