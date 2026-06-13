@@ -3960,95 +3960,81 @@ function patchSectionBay() {
 // ── PDF Download ─────────────────────────────────────────────────
 function downloadPatchPDF() {
   if (!patchData) { toast('Load patch data first.', 'error'); return; }
-  // Open print window with formatted patch sheet
-  const win = window.open('', '_blank');
   const date = patchData.updated || new Date().toISOString().slice(0,10);
 
   const headerHtml = function(title, sub) {
-    return '<div class="page-header"><div class="page-header-title">' + title + '</div>' +
-      '<div class="page-header-sub">' + sub + ' &nbsp;|&nbsp; ' + date + '</div></div>';
+    return '<div class="page-header"><div class="page-header-title">' + title + '<\/div>' +
+      '<div class="page-header-sub">' + sub + ' &nbsp;|&nbsp; ' + date + '<\/div><\/div>';
   };
 
   const inputTableHtml = function(rows, showPhantom) {
-    const phantomTh = showPhantom ? '<th class="col-phantom">48V</th>' : '';
+    const phantomTh = showPhantom ? '<th class="col-phantom">48V<\/th>' : '';
     const bodyRows = rows.map(function(r) {
       const phantomTd = showPhantom
-        ? '<td class="col-phantom">' + (r.phantom ? '&#x2713;' : '') + '</td>'
+        ? '<td class="col-phantom">' + (r.phantom ? '&#x2713;' : '') + '<\/td>'
         : '';
-      return '<tr><td class="col-num">' + r.n + '</td>' +
-        '<td>' + (r.label||'') + '</td>' +
-        '<td>' + (r.source||'') + '</td>' +
+      return '<tr><td class="col-num">' + r.n + '<\/td>' +
+        '<td>' + (r.label||'') + '<\/td>' +
+        '<td>' + (r.source||'') + '<\/td>' +
         phantomTd +
-        '<td class="col-gain">' + (r.gain||'') + '</td>' +
-        '<td>' + (r.notes||'') + '</td></tr>';
+        '<td class="col-gain">' + (r.gain||'') + '<\/td>' +
+        '<td>' + (r.notes||'') + '<\/td><\/tr>';
     }).join('');
-    return '<table><thead><tr><th class="col-num">#</th><th>Label</th><th>Source</th>' +
-      phantomTh + '<th class="col-gain">Gain</th><th>Notes</th></tr></thead>' +
-      '<tbody>' + bodyRows + '</tbody></table>';
+    return '<table><thead><tr><th class="col-num">#<\/th><th>Label<\/th><th>Source<\/th>' +
+      phantomTh + '<th class="col-gain">Gain<\/th><th>Notes<\/th><\/tr><\/thead>' +
+      '<tbody>' + bodyRows + '<\/tbody><\/table>';
   };
 
   const outputTableHtml = function(rows) {
     const bodyRows = rows.map(function(r) {
-      return '<tr><td class="col-num">' + r.n + '</td>' +
-        '<td>' + (r.label||'') + '</td>' +
-        '<td>' + (r.dest||'') + '</td>' +
-        '<td>' + (r.notes||'') + '</td></tr>';
+      return '<tr><td class="col-num">' + r.n + '<\/td>' +
+        '<td>' + (r.label||'') + '<\/td>' +
+        '<td>' + (r.dest||'') + '<\/td>' +
+        '<td>' + (r.notes||'') + '<\/td><\/tr>';
     }).join('');
-    return '<table><thead><tr><th class="col-num">#</th><th>Label</th>' +
-      '<th>Destination</th><th>Notes</th></tr></thead>' +
-      '<tbody>' + bodyRows + '</tbody></table>';
+    return '<table><thead><tr><th class="col-num">#<\/th><th>Label<\/th>' +
+      '<th>Destination<\/th><th>Notes<\/th><\/tr><\/thead>' +
+      '<tbody>' + bodyRows + '<\/tbody><\/table>';
   };
 
   const trapTableHtml = function(rows, isOutput) {
     const numTh = isOutput ? 'Out' : '#';
     const bodyRows = rows.map(function(r) {
-      return '<tr><td class="col-num">' + (isOutput ? r.id : r.n) + '</td>' +
-        '<td>' + (r.label||'') + '</td>' +
-        '<td>' + (r.patchedTo||'') + '</td>' +
-        '<td>' + (r.notes||'') + '</td></tr>';
+      return '<tr><td class="col-num">' + (isOutput ? r.id : r.n) + '<\/td>' +
+        '<td>' + (r.label||'') + '<\/td>' +
+        '<td>' + (r.patchedTo||'') + '<\/td>' +
+        '<td>' + (r.notes||'') + '<\/td><\/tr>';
     }).join('');
-    return '<table><thead><tr><th class="col-num">' + numTh + '</th><th>Label</th>' +
-      '<th>Patched To</th><th>Notes</th></tr></thead>' +
-      '<tbody>' + bodyRows + '</tbody></table>';
+    return '<table><thead><tr><th class="col-num">' + numTh + '<\/th><th>Label<\/th>' +
+      '<th>Patched To<\/th><th>Notes<\/th><\/tr><\/thead>' +
+      '<tbody>' + bodyRows + '<\/tbody><\/table>';
   };
 
   const trapSectionsHtml = patchData.traps.map(trap =>
-    '<div class="sub-header">' + trap.name + ' \u2014 Inputs</div>' +
+    '<div class="sub-header">' + trap.name + ' \u2014 Inputs<\/div>' +
     trapTableHtml(trap.inputs, false) +
-    '<div class="sub-header">' + trap.name + ' \u2014 Outputs</div>' +
+    '<div class="sub-header">' + trap.name + ' \u2014 Outputs<\/div>' +
     trapTableHtml(trap.outputs, true)
   ).join('');
 
-  const pdfHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>' +
-  '<title>Audio Patch Sheet</title>' +
-  '<style>' +
-  '* { box-sizing: border-box; margin: 0; padding: 0; }' +
-  "body { font-family: 'Arial', sans-serif; font-size: 9pt; color: #111; }" +
-  '.page { padding: 16mm 14mm; page-break-after: always; }' +
-  '.page:last-child { page-break-after: auto; }' +
-  '.page-header { margin-bottom: 10px; border-bottom: 2px solid #111; padding-bottom: 6px; }' +
-  '.page-header-title { font-size: 14pt; font-weight: bold; }' +
-  '.page-header-sub { font-size: 8pt; color: #555; margin-top: 2px; }' +
-  'table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }' +
-  'th { background: #f0f0f0; font-size: 7pt; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; border: 1px solid #ccc; text-align: left; }' +
-  'td { padding: 3px 6px; border: 1px solid #ddd; font-size: 8.5pt; }' +
-  'tr:nth-child(even) td { background: #fafafa; }' +
-  '.col-num { width: 32px; text-align: right; font-family: monospace; color: #666; }' +
-  '.col-phantom { width: 36px; text-align: center; }' +
-  '.col-gain { width: 48px; }' +
-  '.sub-header { font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: .06em; color: #555; margin: 8px 0 4px; padding: 3px 6px; background: #e8e8e8; border-left: 3px solid #333; }' +
-  '@media print { .page { padding: 12mm 10mm; } }' +
-  '</style></head><body>' +
-  '<div class="page">' + headerHtml('SQ6 \u2014 Local Inputs', '24\u00d7 XLR \u00b7 2\u00d7 Stereo TRS') + inputTableHtml(patchData.sq6_inputs, true) + '</div>' +
-  '<div class="page">' + headerHtml('SQ6 \u2014 Local Outputs', '14\u00d7 XLR \u00b7 1\u00d7 AES \u00b7 2\u00d7 TRS') + outputTableHtml(patchData.sq6_outputs) + '</div>' +
-  '<div class="page">' + headerHtml('GX4816 Stage Rack \u2014 Inputs', '48\u00d7 inputs') + inputTableHtml(patchData.gx_inputs, true) + '</div>' +
-  '<div class="page">' + headerHtml('GX4816 Stage Rack \u2014 Outputs', '16\u00d7 outputs') + outputTableHtml(patchData.gx_outputs) + '</div>' +
-  '<div class="page">' + headerHtml('Patch Bay', 'Trap 1\u20135 \u00b7 Drums') + trapSectionsHtml + '</div>' +
-  '</body></html>';
+  var pdfCss = '* { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: Arial, sans-serif; font-size: 9pt; color: #111; } .page { padding: 16mm 14mm; page-break-after: always; } .page:last-child { page-break-after: auto; } .page-header { margin-bottom: 10px; border-bottom: 2px solid #111; padding-bottom: 6px; } .page-header-title { font-size: 14pt; font-weight: bold; } .page-header-sub { font-size: 8pt; color: #555; margin-top: 2px; } table { width: 100%; border-collapse: collapse; margin-bottom: 8px; } th { background: #f0f0f0; font-size: 7pt; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; border: 1px solid #ccc; text-align: left; } td { padding: 3px 6px; border: 1px solid #ddd; font-size: 8.5pt; } tr:nth-child(even) td { background: #fafafa; } .col-num { width: 32px; text-align: right; font-family: monospace; color: #666; } .col-phantom { width: 36px; text-align: center; } .col-gain { width: 48px; } .sub-header { font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: .06em; color: #555; margin: 8px 0 4px; padding: 3px 6px; background: #e8e8e8; border-left: 3px solid #333; } @media print { .page { padding: 12mm 10mm; } }';
+  // Note: closing tags split with + to prevent browser HTML parser from closing the script block early
+  var pdfHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Audio Patch Sheet<\/title><style>' + pdfCss + '<\/style><\/head><body>';
+  pdfHtml += '<div class="page">' + headerHtml('SQ6 - Local Inputs', '24x XLR, 2x Stereo TRS') + inputTableHtml(patchData.sq6_inputs, true) + '<\/div>';
+  pdfHtml += '<div class="page">' + headerHtml('SQ6 - Local Outputs', '14x XLR, 1x AES, 2x TRS') + outputTableHtml(patchData.sq6_outputs) + '<\/div>';
+  pdfHtml += '<div class="page">' + headerHtml('GX4816 Stage Rack - Inputs', '48x inputs') + inputTableHtml(patchData.gx_inputs, true) + '<\/div>';
+  pdfHtml += '<div class="page">' + headerHtml('GX4816 Stage Rack - Outputs', '16x outputs') + outputTableHtml(patchData.gx_outputs) + '<\/div>';
+  pdfHtml += '<div class="page">' + headerHtml('Patch Bay', 'Trap 1-5, Drums') + trapSectionsHtml + '<\/div>';
+  pdfHtml += '<\/body><\/html>';
 
-  win.document.write(pdfHtml);
-  win.document.close();
-  setTimeout(() => { win.print(); }, 500);
+  var blob = new Blob([pdfHtml], {type: 'text/html'});
+  var blobUrl = URL.createObjectURL(blob);
+  var printWin = window.open(blobUrl, '_blank');
+  if (printWin) {
+    printWin.onload = function() {
+      printWin.print();
+    };
+  }
 }
 
 // Load patch when tab is opened
