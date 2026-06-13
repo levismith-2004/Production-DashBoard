@@ -647,7 +647,7 @@ option.primary-person::before { content: '★ '; }
   .tab-panel.active { display: block; height: auto; }
 
   /* ── Hide desktop-only tabs on mobile (inventory stays — shown as cards) ── */
-  #panel-matrix, #panel-stats,
+  #panel-matrix, #panel-stats, #panel-people,
   #panel-reliability, #panel-departments { display: none !important; }
 
   /* ── Inventory: hide desktop table, show mobile cards ── */
@@ -772,6 +772,19 @@ option.primary-person::before { content: '★ '; }
   .mob-inv-cards { display: none; }
 }
 
+/* ── Segmented control ───────────────────────────────────────── */
+.seg-control {
+  display: flex; background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 3px; gap: 2px;
+}
+.seg-btn {
+  padding: 6px 16px; border-radius: 4px; font-size: 13px; font-weight: 500;
+  color: var(--muted); transition: all .15s; cursor: pointer;
+  background: none; border: none;
+}
+.seg-btn.active { background: var(--accent-glow); color: var(--accent); }
+.seg-btn:hover:not(.active) { color: var(--text); background: var(--surface2); }
+
 /* ── Volunteer Stats & Reliability tabs ──────────────────────── */
 .stats-controls {
   display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
@@ -857,8 +870,7 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn" onclick="switchTab('runsheet')" data-tab="runsheet">Run Sheet</button>
       <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
-      <button class="tab-btn" onclick="switchTab('stats')" data-tab="stats">Volunteer Stats</button>
-      <button class="tab-btn" onclick="switchTab('reliability')" data-tab="reliability">Reliability</button>
+      <button class="tab-btn" onclick="switchTab('people')" data-tab="people">People</button>
       <div class="tab-spacer"></div>
       <div id="connection-status">
         <div class="status-dot" id="conn-dot"></div>
@@ -1023,52 +1035,47 @@ option.primary-person::before { content: '★ '; }
         <div id="inventory-list"><div class="state-msg">Loading inventory…</div></div>
       </div>
 
-      <!-- ── Volunteer Stats ────────────────────────────────── -->
-      <div class="tab-panel" id="panel-stats">
+      <!-- ── People (Volunteer Stats + Reliability) ───────────── -->
+      <div class="tab-panel" id="panel-people">
         <div class="section-header">
           <div>
-            <div class="section-title">Volunteer Stats</div>
-            <div class="section-sub" id="stats-sub">Service counts per person on the production team</div>
+            <div class="section-title">People</div>
+            <div class="section-sub" id="people-sub">Production team analytics</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-ghost btn-sm" onclick="exportStatsCSV()">↓ CSV</button>
+            <button class="btn btn-ghost btn-sm" id="people-export-btn" onclick="exportActiveSubpage()">↓ CSV</button>
             <button class="btn btn-primary btn-sm" onclick="loadVolunteerStats()">↺ Refresh</button>
           </div>
         </div>
-        <div class="stats-controls">
-          <label style="font-size:12px;color:var(--muted)">Period:</label>
-          <select id="stats-period" onchange="loadVolunteerStats()">
-            <option value="3">Last 3 months</option>
-            <option value="6" selected>Last 6 months</option>
-            <option value="12">Last 12 months</option>
-            <option value="24">Last 24 months</option>
-          </select>
-        </div>
-        <div id="stats-content"><div class="state-msg">Click Refresh to load volunteer statistics.</div></div>
-      </div>
 
-      <!-- ── Reliability Score ──────────────────────────────── -->
-      <div class="tab-panel" id="panel-reliability">
-        <div class="section-header">
-          <div>
-            <div class="section-title">Reliability Score</div>
-            <div class="section-sub" id="reliability-sub">Confirmed vs declined — who you can count on</div>
+        <!-- Segmented control -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+          <div class="seg-control">
+            <button class="seg-btn active" id="seg-stats" onclick="switchPeopleSubpage('stats')">Volunteer Stats</button>
+            <button class="seg-btn" id="seg-reliability" onclick="switchPeopleSubpage('reliability')">Reliability</button>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-ghost btn-sm" onclick="exportReliabilityCSV()">↓ CSV</button>
-            <button class="btn btn-primary btn-sm" onclick="loadVolunteerStats()">↺ Refresh</button>
+          <div class="stats-controls" style="margin-bottom:0">
+            <label style="font-size:12px;color:var(--muted)">Period:</label>
+            <select id="stats-period" onchange="loadVolunteerStats()">
+              <option value="3">Last 3 months</option>
+              <option value="6" selected>Last 6 months</option>
+              <option value="12">Last 12 months</option>
+              <option value="24">Last 24 months</option>
+            </select>
           </div>
         </div>
-        <div class="stats-controls">
-          <label style="font-size:12px;color:var(--muted)">Period:</label>
-          <select id="reliability-period" onchange="loadVolunteerStats()">
-            <option value="3">Last 3 months</option>
-            <option value="6" selected>Last 6 months</option>
-            <option value="12">Last 12 months</option>
-            <option value="24">Last 24 months</option>
-          </select>
+
+        <!-- Stats subpage -->
+        <div id="subpage-stats">
+          <div class="section-sub" id="stats-sub" style="margin-bottom:12px">Service counts per person</div>
+          <div id="stats-content"><div class="state-msg">Click Refresh to load volunteer statistics.</div></div>
         </div>
-        <div id="reliability-content"><div class="state-msg">Click Refresh to load reliability data.</div></div>
+
+        <!-- Reliability subpage -->
+        <div id="subpage-reliability" style="display:none">
+          <div class="section-sub" id="reliability-sub" style="margin-bottom:12px">Confirmed vs declined — who you can count on</div>
+          <div id="reliability-content"><div class="state-msg">Click Refresh to load reliability data.</div></div>
+        </div>
       </div>
 
       <!-- ── Settings ──────────────────────────────────────── -->
@@ -3029,6 +3036,7 @@ function switchTab(tabId) {
   // Lazy-load tabs
   if (tabId === 'inventory' && inventoryItems.length === 0) loadInventory();
   if (tabId === 'calendar') buildFullCalendar();
+  if (tabId === 'people' && !statsCache['6']) { /* auto-load on first visit */ }
 }
 
 let sidebarCollapsed = false;
@@ -3091,6 +3099,24 @@ function onMobServiceSelect(sel) {
 
 
 
+// ═══════════════════════════════════════════════════════════════════
+//  PEOPLE TAB — subpage switching
+// ═══════════════════════════════════════════════════════════════════
+let activePeopleSubpage = 'stats';
+
+function switchPeopleSubpage(name) {
+  activePeopleSubpage = name;
+  document.getElementById('subpage-stats').style.display = name === 'stats' ? 'block' : 'none';
+  document.getElementById('subpage-reliability').style.display = name === 'reliability' ? 'block' : 'none';
+  document.getElementById('seg-stats').classList.toggle('active', name === 'stats');
+  document.getElementById('seg-reliability').classList.toggle('active', name === 'reliability');
+}
+
+function exportActiveSubpage() {
+  if (activePeopleSubpage === 'stats') exportStatsCSV();
+  else exportReliabilityCSV();
+}
+
 // Cache: {monthsKey: {personId: {name, confirmed, pending, declined, services:[{date,pos,status}]}}}
 let statsCache = {};
 let statsSortCol = 'total';
@@ -3099,16 +3125,7 @@ let reliSortCol = 'score';
 let reliSortAsc = false;
 
 async function loadVolunteerStats() {
-  const periodEl = document.getElementById(
-    currentTab === 'reliability' ? 'reliability-period' : 'stats-period'
-  );
-  const months = parseInt(periodEl.value) || 6;
-
-  // Sync both selects
-  const sp = document.getElementById('stats-period');
-  const rp = document.getElementById('reliability-period');
-  if (sp) sp.value = months;
-  if (rp) rp.value = months;
+  const months = parseInt(document.getElementById('stats-period').value) || 6;
 
   const cacheKey = String(months);
   if (statsCache[cacheKey]) {
@@ -3124,7 +3141,6 @@ async function loadVolunteerStats() {
     return;
   }
 
-  // Show progress indicator — only update this, never the table mid-load
   const showProgress = (msg) => {
     const html = `<div class="state-msg"><div class="spinner"></div><br>${msg}</div>`;
     document.getElementById('stats-content').innerHTML = html;
@@ -3219,8 +3235,12 @@ async function loadVolunteerStats() {
   // Cache and do ONE final render
   statsCache[cacheKey] = personMap;
   const subText = `Last ${months} months · ${total} plans · ${teamPeople.length} people`;
-  document.getElementById('stats-sub').textContent = subText;
-  document.getElementById('reliability-sub').textContent = subText;
+  const subStats = document.getElementById('stats-sub');
+  const subReli = document.getElementById('reliability-sub');
+  const subPeople = document.getElementById('people-sub');
+  if (subStats) subStats.textContent = subText;
+  if (subReli) subReli.textContent = subText;
+  if (subPeople) subPeople.textContent = subText;
 
   renderStats(personMap, months);
   renderReliability(personMap, months);
