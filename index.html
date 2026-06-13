@@ -202,12 +202,12 @@ a { color: var(--accent); text-decoration: none; }
 /* Gaps — full width row 3 */
 #gaps-widget { grid-column: 1 / 4; grid-row: 3; }
 #clock-display {
-  font-family: var(--mono); font-size: 64px; font-weight: 600;
+  font-family: var(--mono); font-size: 84px; font-weight: 600;
   color: var(--accent); letter-spacing: -3px; line-height: 1;
   margin-bottom: 6px;
 }
-#clock-display .secs { font-size: 38px; color: var(--muted); }
-#clock-date { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; }
+#clock-display .secs { font-size: 48px; color: var(--muted); }
+#clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
 .mini-cal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; font-size: 13px; font-weight: 600;
@@ -1042,10 +1042,10 @@ option.primary-person::before { content: '★ '; }
           </div>
 
           <!-- Matrix shortcut — row 1 col 3 -->
-          <div class="card" id="matrix-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px">
+          <div class="card" id="matrix-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
             <div>
-              <div class="section-sub" style="margin-bottom:6px">ROSTER MATRIX</div>
-              <div style="font-size:13px;color:var(--muted)">Manage production team rosters</div>
+              <div class="section-sub" style="margin-bottom:4px;font-size:14px">ROSTER MATRIX</div>
+              <div style="font-size:14px;color:var(--muted)">Manage production team rosters</div>
             </div>
             <button class="btn btn-primary" onclick="switchTab('matrix')">Open →</button>
           </div>
@@ -1060,8 +1060,8 @@ option.primary-person::before { content: '★ '; }
             </div>
             <div class="card" id="runsheet-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
               <div>
-                <div class="section-sub" style="margin-bottom:4px">RUN SHEET</div>
-                <div style="font-size:13px;color:var(--muted)">View order of service</div>
+                <div class="section-sub" style="margin-bottom:4px;font-size:14px">RUN SHEET</div>
+                <div style="font-size:14px;color:var(--muted)">View order of service</div>
               </div>
               <button class="btn btn-primary" onclick="switchTab('runsheet')">Open →</button>
             </div>
