@@ -916,8 +916,37 @@ option.primary-person::before { content: '★ '; }
   background: var(--yellow); margin-left: 8px; vertical-align: middle;
   display: none;
 }
-.patch-dirty .patch-dirty-indicator { display: inline-block; }
-</style>
+/* ── Signal Flow ─────────────────────────────────────────────── */
+.sf-node {
+  position: absolute; min-width: 120px; max-width: 180px;
+  border-radius: var(--radius-sm); border: 2px solid;
+  padding: 8px 12px; cursor: move; user-select: none;
+  font-size: 12px; font-weight: 600; text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3); transition: box-shadow .15s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sf-node:hover { box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+.sf-node.selected { box-shadow: 0 0 0 3px var(--accent), 0 4px 16px rgba(0,0,0,.5); }
+.sf-node.connecting-source { box-shadow: 0 0 0 3px var(--yellow), 0 4px 16px rgba(0,0,0,.5); }
+.sf-node-type { font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; opacity: .7; margin-bottom: 3px; }
+.sf-node-label { font-size: 13px; font-weight: 600; }
+
+/* Node type colours */
+.sf-node.mic       { background: rgba(248,113,113,.15); border-color: #F87171; color: #F87171; }
+.sf-node.di        { background: rgba(251,146,60,.15);  border-color: #FB923C; color: #FB923C; }
+.sf-node.playback  { background: rgba(251,191,36,.15);  border-color: #FBBF24; color: #FBBF24; }
+.sf-node.stagebox  { background: rgba(167,139,250,.15); border-color: #A78BFA; color: #A78BFA; }
+.sf-node.console   { background: rgba(56,189,248,.15);  border-color: #38BDF8; color: #38BDF8; }
+.sf-node.bus       { background: rgba(34,211,238,.15);  border-color: #22D3EE; color: #22D3EE; }
+.sf-node.output    { background: rgba(74,222,128,.15);  border-color: #4ADE80; color: #4ADE80; }
+.sf-node.custom    { background: rgba(148,163,184,.15); border-color: #94A3B8; color: #94A3B8; }
+
+.sf-connection { stroke: var(--muted2); stroke-width: 2; fill: none;
+  marker-end: url(#arrowhead); cursor: pointer; }
+.sf-connection:hover { stroke: var(--accent); stroke-width: 2.5; }
+.sf-connection.selected { stroke: var(--accent); stroke-width: 2.5; }
+.sf-conn-label { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
 </head>
 <body>
 
@@ -949,7 +978,7 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
       <button class="tab-btn" onclick="switchTab('people')" data-tab="people">People</button>
-      <button class="tab-btn" onclick="switchTab('patch')" data-tab="patch">Patch Sheet</button>
+      <button class="tab-btn" onclick="switchTab('audio')" data-tab="audio">Audio</button>
       <div class="tab-spacer"></div>
       <div id="connection-status">
         <div class="status-dot" id="conn-dot"></div>
@@ -1169,20 +1198,73 @@ option.primary-person::before { content: '★ '; }
         </div>
       </div>
 
-      <!-- ── Patch Sheet ─────────────────────────────────────── -->
-      <div class="tab-panel" id="panel-patch">
+      <!-- ── Audio ──────────────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-audio">
         <div class="section-header">
           <div>
-            <div class="section-title">Audio Patch Sheet</div>
-            <div class="section-sub">SQ6 · GX4816 · Patch Bay — click any cell to edit</div>
+            <div class="section-title">Audio</div>
+            <div class="section-sub" id="audio-sub">Patch sheet &amp; signal flow</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;gap:8px;align-items:center" id="audio-actions">
+            <!-- Actions populated by subpage -->
+          </div>
+        </div>
+
+        <!-- Segmented control -->
+        <div style="margin-bottom:16px">
+          <div class="seg-control">
+            <button class="seg-btn active" id="seg-patch" onclick="switchAudioSubpage('patch')">Patch Sheet</button>
+            <button class="seg-btn" id="seg-signalflow" onclick="switchAudioSubpage('signalflow')">Signal Flow</button>
+          </div>
+        </div>
+
+        <!-- Patch Sheet subpage -->
+        <div id="subpage-patch">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
             <span id="patch-save-status" style="font-size:12px;color:var(--muted)"></span>
             <button class="btn btn-ghost btn-sm" onclick="savePatch()">💾 Save</button>
             <button class="btn btn-primary btn-sm" onclick="downloadPatchPDF()">↓ PDF</button>
           </div>
+          <div id="patch-container"><div class="state-msg"><div class="spinner"></div><br>Loading patch sheet…</div></div>
         </div>
-        <div id="patch-container"><div class="state-msg"><div class="spinner"></div><br>Loading patch sheet…</div></div>
+
+        <!-- Signal Flow subpage -->
+        <div id="subpage-signalflow" style="display:none">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            <div style="font-size:12px;color:var(--muted)">Node type:</div>
+            <select id="sf-node-type" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:4px;outline:none;font-size:12px">
+              <option value="mic">Mic</option>
+              <option value="di">DI / Instrument</option>
+              <option value="playback">Playback</option>
+              <option value="stagebox">Stage Box</option>
+              <option value="console">Console</option>
+              <option value="bus">Bus / Mix</option>
+              <option value="output">Output</option>
+              <option value="custom">Custom</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="sfAddNode()">+ Add Node</button>
+            <button class="btn btn-ghost btn-sm" onclick="sfClearSelection()" id="sf-cancel-btn" style="display:none;color:var(--yellow)">✕ Cancel Connection</button>
+            <button class="btn btn-ghost btn-sm" onclick="sfDeleteSelected()" id="sf-delete-btn" style="display:none;color:var(--red)">Delete Selected</button>
+            <div style="flex:1"></div>
+            <span id="sf-save-status" style="font-size:12px;color:var(--muted)"></span>
+            <button class="btn btn-ghost btn-sm" onclick="saveSignalFlow()">💾 Save</button>
+            <button class="btn btn-ghost btn-sm" onclick="sfZoomReset()">Reset View</button>
+          </div>
+          <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">
+            Click a node to select · Drag to move · Click two nodes to connect them · Double-click to rename · Right-click to delete
+          </div>
+          <div id="sf-canvas-wrap" style="position:relative;width:100%;height:calc(100vh - 280px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:default">
+            <svg id="sf-svg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="var(--muted2)"/>
+                </marker>
+              </defs>
+              <g id="sf-connections"></g>
+            </svg>
+            <div id="sf-nodes" style="position:absolute;inset:0"></div>
+          </div>
+        </div>
       </div>
 
       <!-- ── Settings ──────────────────────────────────────── -->
@@ -3176,7 +3258,7 @@ function switchTab(tabId) {
   // Lazy-load tabs
   if (tabId === 'inventory' && inventoryItems.length === 0) loadInventory();
   if (tabId === 'calendar') buildFullCalendar();
-  if (tabId === 'patch' && !patchData) loadPatch();
+  if (tabId === 'audio' && !patchData) { loadPatch(); loadSignalFlow(); }
   if (tabId === 'people' && !statsCache['6']) { /* auto-load on first visit */ }
 }
 
@@ -4068,6 +4150,314 @@ function exportReliabilityCSV() {
   a.download = `reliability-${months}mo.csv`;
   a.click();
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  AUDIO TAB — subpage switching
+// ═══════════════════════════════════════════════════════════════════
+let activeAudioSubpage = 'patch';
+
+function switchAudioSubpage(name) {
+  activeAudioSubpage = name;
+  document.getElementById('subpage-patch').style.display = name === 'patch' ? 'block' : 'none';
+  document.getElementById('subpage-signalflow').style.display = name === 'signalflow' ? 'block' : 'none';
+  document.getElementById('seg-patch').classList.toggle('active', name === 'patch');
+  document.getElementById('seg-signalflow').classList.toggle('active', name === 'signalflow');
+  if (name === 'signalflow') sfRenderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SIGNAL FLOW
+// ═══════════════════════════════════════════════════════════════════
+
+let sfNodes = [];       // [{id, type, label, x, y}]
+let sfConnections = []; // [{id, from, to}]
+let sfDirty = false;
+let sfSelectedId = null;       // selected node or connection id
+let sfConnectingFrom = null;   // node id we're connecting from
+let sfDragState = null;        // {nodeId, startX, startY, origX, origY}
+let sfNodeCounter = 0;
+let sfConnCounter = 0;
+
+const SF_TYPE_LABELS = {
+  mic: 'Mic', di: 'DI / Instrument', playback: 'Playback',
+  stagebox: 'Stage Box', console: 'Console', bus: 'Bus / Mix',
+  output: 'Output', custom: 'Custom',
+};
+
+// ── Load / Save ────────────────────────────────────────────────────
+async function loadSignalFlow() {
+  try {
+    const res = await fetch('/signalflow');
+    const data = await res.json();
+    if (data && data.nodes) {
+      sfNodes = data.nodes || [];
+      sfConnections = data.connections || [];
+      sfNodeCounter = sfNodes.reduce((m, n) => Math.max(m, parseInt(n.id.replace('n',''))||0), 0);
+      sfConnCounter = sfConnections.reduce((m, c) => Math.max(m, parseInt(c.id.replace('c',''))||0), 0);
+    }
+    if (activeAudioSubpage === 'signalflow') sfRenderAll();
+  } catch (e) {
+    console.warn('loadSignalFlow error:', e);
+  }
+}
+
+async function saveSignalFlow() {
+  const statusEl = document.getElementById('sf-save-status');
+  if (statusEl) statusEl.textContent = 'Saving…';
+  try {
+    const res = await fetch('/signalflow/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes: sfNodes, connections: sfConnections }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      sfDirty = false;
+      if (statusEl) statusEl.textContent = 'Saved';
+      toast('Signal flow saved.', 'success');
+    } else {
+      if (statusEl) statusEl.textContent = 'Save failed';
+      toast('Save failed.', 'error');
+    }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'Error';
+    toast('Error saving: ' + e.message, 'error');
+  }
+}
+
+// ── Add node ───────────────────────────────────────────────────────
+function sfAddNode() {
+  const type = document.getElementById('sf-node-type').value;
+  const label = SF_TYPE_LABELS[type] || 'Node';
+  sfNodeCounter++;
+  const wrap = document.getElementById('sf-canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  // Place near centre with slight random offset
+  const x = Math.round(rect.width / 2 - 60 + (Math.random() - 0.5) * 120);
+  const y = Math.round(rect.height / 2 - 30 + (Math.random() - 0.5) * 80);
+  sfNodes.push({ id: 'n' + sfNodeCounter, type, label, x, y });
+  sfDirty = true;
+  sfRenderAll();
+}
+
+// ── Render ─────────────────────────────────────────────────────────
+function sfRenderAll() {
+  sfRenderConnections();
+  sfRenderNodes();
+}
+
+function sfGetNodeCenter(node) {
+  const el = document.getElementById('sfn-' + node.id);
+  if (!el) return { x: node.x + 60, y: node.y + 30 };
+  return { x: node.x + el.offsetWidth / 2, y: node.y + el.offsetHeight / 2 };
+}
+
+function sfRenderConnections() {
+  const g = document.getElementById('sf-connections');
+  if (!g) return;
+  g.innerHTML = '';
+  sfConnections.forEach(conn => {
+    const fromNode = sfNodes.find(n => n.id === conn.from);
+    const toNode = sfNodes.find(n => n.id === conn.to);
+    if (!fromNode || !toNode) return;
+    const from = sfGetNodeCenter(fromNode);
+    const to = sfGetNodeCenter(toNode);
+    // Bezier curve
+    const dx = to.x - from.x;
+    const cx1 = from.x + dx * 0.5;
+    const cx2 = to.x - dx * 0.5;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${from.x},${from.y} C${cx1},${from.y} ${cx2},${to.y} ${to.x},${to.y}`);
+    path.setAttribute('class', 'sf-connection' + (sfSelectedId === conn.id ? ' selected' : ''));
+    path.setAttribute('data-id', conn.id);
+    path.addEventListener('click', () => sfSelectConnection(conn.id));
+    g.appendChild(path);
+  });
+}
+
+function sfRenderNodes() {
+  const container = document.getElementById('sf-nodes');
+  if (!container) return;
+
+  // Update existing nodes, add new ones, remove deleted ones
+  const existingIds = new Set([...container.querySelectorAll('.sf-node')].map(el => el.dataset.id));
+  const currentIds = new Set(sfNodes.map(n => n.id));
+
+  // Remove deleted
+  existingIds.forEach(id => {
+    if (!currentIds.has(id)) {
+      const el = document.getElementById('sfn-' + id);
+      if (el) el.remove();
+    }
+  });
+
+  sfNodes.forEach(node => {
+    let el = document.getElementById('sfn-' + node.id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sfn-' + node.id;
+      el.className = `sf-node ${node.type}`;
+      el.dataset.id = node.id;
+      el.innerHTML = `<div class="sf-node-type">${SF_TYPE_LABELS[node.type]||node.type}</div><div class="sf-node-label" id="sfl-${node.id}">${esc(node.label)}</div>`;
+      el.addEventListener('mousedown', (e) => sfOnMouseDown(e, node.id));
+      el.addEventListener('click', (e) => { e.stopPropagation(); sfOnNodeClick(node.id); });
+      el.addEventListener('dblclick', (e) => { e.stopPropagation(); sfRenameNode(node.id); });
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); sfDeleteNode(node.id); });
+      container.appendChild(el);
+    }
+    // Always update position and state
+    el.style.left = node.x + 'px';
+    el.style.top = node.y + 'px';
+    el.className = `sf-node ${node.type}${sfSelectedId === node.id ? ' selected' : ''}${sfConnectingFrom === node.id ? ' connecting-source' : ''}`;
+    const labelEl = document.getElementById('sfl-' + node.id);
+    if (labelEl) labelEl.textContent = node.label;
+  });
+}
+
+// ── Interaction ────────────────────────────────────────────────────
+function sfOnNodeClick(nodeId) {
+  if (sfConnectingFrom) {
+    // Complete connection
+    if (sfConnectingFrom !== nodeId) {
+      // Check not duplicate
+      const exists = sfConnections.some(c => c.from === sfConnectingFrom && c.to === nodeId);
+      if (!exists) {
+        sfConnCounter++;
+        sfConnections.push({ id: 'c' + sfConnCounter, from: sfConnectingFrom, to: nodeId });
+        sfDirty = true;
+      }
+    }
+    sfConnectingFrom = null;
+    document.getElementById('sf-cancel-btn').style.display = 'none';
+    sfRenderAll();
+    return;
+  }
+  // Select / deselect
+  sfSelectedId = sfSelectedId === nodeId ? null : nodeId;
+  const deleteBtn = document.getElementById('sf-delete-btn');
+  if (deleteBtn) deleteBtn.style.display = sfSelectedId ? 'inline-flex' : 'none';
+  sfRenderAll();
+}
+
+function sfSelectConnection(connId) {
+  sfSelectedId = sfSelectedId === connId ? null : connId;
+  const deleteBtn = document.getElementById('sf-delete-btn');
+  if (deleteBtn) deleteBtn.style.display = sfSelectedId ? 'inline-flex' : 'none';
+  sfRenderConnections();
+}
+
+function sfOnMouseDown(e, nodeId) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const node = sfNodes.find(n => n.id === nodeId);
+  if (!node) return;
+  sfDragState = {
+    nodeId,
+    startMouseX: e.clientX,
+    startMouseY: e.clientY,
+    origX: node.x,
+    origY: node.y,
+    moved: false,
+  };
+
+  const onMove = (e2) => {
+    if (!sfDragState) return;
+    const dx = e2.clientX - sfDragState.startMouseX;
+    const dy = e2.clientY - sfDragState.startMouseY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) sfDragState.moved = true;
+    node.x = Math.max(0, sfDragState.origX + dx);
+    node.y = Math.max(0, sfDragState.origY + dy);
+    const el = document.getElementById('sfn-' + nodeId);
+    if (el) { el.style.left = node.x + 'px'; el.style.top = node.y + 'px'; }
+    sfRenderConnections();
+  };
+
+  const onUp = () => {
+    if (sfDragState && !sfDragState.moved) {
+      // Was a click, not a drag — start connecting mode
+      if (!sfConnectingFrom) {
+        sfConnectingFrom = nodeId;
+        document.getElementById('sf-cancel-btn').style.display = 'inline-flex';
+        sfRenderNodes();
+      }
+    } else if (sfDragState && sfDragState.moved) {
+      sfDirty = true;
+      sfRenderConnections();
+    }
+    sfDragState = null;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function sfRenameNode(nodeId) {
+  const node = sfNodes.find(n => n.id === nodeId);
+  if (!node) return;
+  const newLabel = prompt('Rename node:', node.label);
+  if (newLabel !== null && newLabel.trim()) {
+    node.label = newLabel.trim();
+    sfDirty = true;
+    sfRenderNodes();
+  }
+}
+
+function sfDeleteNode(nodeId) {
+  sfNodes = sfNodes.filter(n => n.id !== nodeId);
+  sfConnections = sfConnections.filter(c => c.from !== nodeId && c.to !== nodeId);
+  if (sfSelectedId === nodeId) sfSelectedId = null;
+  sfDirty = true;
+  const el = document.getElementById('sfn-' + nodeId);
+  if (el) el.remove();
+  sfRenderConnections();
+}
+
+function sfDeleteSelected() {
+  if (!sfSelectedId) return;
+  // Is it a node or connection?
+  if (sfNodes.some(n => n.id === sfSelectedId)) {
+    sfDeleteNode(sfSelectedId);
+  } else {
+    sfConnections = sfConnections.filter(c => c.id !== sfSelectedId);
+    sfDirty = true;
+    sfSelectedId = null;
+    sfRenderConnections();
+  }
+  document.getElementById('sf-delete-btn').style.display = 'none';
+}
+
+function sfClearSelection() {
+  sfConnectingFrom = null;
+  sfSelectedId = null;
+  document.getElementById('sf-cancel-btn').style.display = 'none';
+  document.getElementById('sf-delete-btn').style.display = 'none';
+  sfRenderAll();
+}
+
+function sfZoomReset() {
+  // Recentre all nodes around the canvas centre
+  if (!sfNodes.length) return;
+  const wrap = document.getElementById('sf-canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const minX = Math.min(...sfNodes.map(n => n.x));
+  const minY = Math.min(...sfNodes.map(n => n.y));
+  const maxX = Math.max(...sfNodes.map(n => n.x));
+  const maxY = Math.max(...sfNodes.map(n => n.y));
+  const offsetX = rect.width / 2 - (minX + maxX) / 2 - 60;
+  const offsetY = rect.height / 2 - (minY + maxY) / 2 - 20;
+  sfNodes.forEach(n => { n.x = Math.max(0, n.x + offsetX); n.y = Math.max(0, n.y + offsetY); });
+  sfDirty = true;
+  sfRenderAll();
+}
+
+// Click on canvas background to deselect
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'sf-nodes' || e.target.id === 'sf-canvas-wrap' || e.target.id === 'sf-svg') {
+    sfClearSelection();
+  }
+});
 </script>
 
 </body>
