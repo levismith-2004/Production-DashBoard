@@ -272,5 +272,15 @@
     "location": "",
     "notes": "",
     "id": "mqbpfv3iqmnpm"
+  },
+  {
+    "item": "test 2",
+    "brand": "TEST",
+    "quantity": 1,
+    "value": 100,
+    "retailValue": 0,
+    "location": "",
+    "notes": "",
+    "id": "mqbpig6j3p733"
   }
 ]
