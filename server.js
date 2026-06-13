@@ -9,6 +9,13 @@ const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const PCO_APP_ID = process.env.PCO_APP_ID || '';
 const PCO_SECRET = process.env.PCO_SECRET || '';
 
+// GitHub-backed inventory config (set these in Railway environment variables)
+const GITHUB_TOKEN  = process.env.GITHUB_TOKEN  || '';
+const GITHUB_REPO   = process.env.GITHUB_REPO   || ''; // e.g. "yourname/production-dashboard"
+const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
+const GITHUB_PATH   = 'inventory.json';
+
+// Local file fallback (used if GitHub env vars not set)
 const INVENTORY_FILE = path.join(__dirname, 'inventory.json');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -73,20 +80,139 @@ function pcoOptions(method, pcoPath, authHeader) {
   };
 }
 
-// ── Inventory JSON helpers ──────────────────────────────────────────────────
+// ── GitHub inventory helpers ────────────────────────────────────────────────
+// If GITHUB_TOKEN + GITHUB_REPO are set, all reads/writes go to GitHub.
+// Otherwise falls back to local inventory.json (useful for local dev).
 
-function readInventory() {
+const githubEnabled = () => !!(GITHUB_TOKEN && GITHUB_REPO);
+
+// Fetch the file content + SHA from GitHub (needed for writes)
+async function githubGetFile() {
+  const result = await httpsRequest({
+    hostname: 'api.github.com',
+    path: `/repos/${GITHUB_REPO}/contents/${GITHUB_PATH}?ref=${GITHUB_BRANCH}`,
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'production-dashboard',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  });
+  if (result.status === 404) return { items: [], sha: null };
+  const data = JSON.parse(result.body);
+  const content = Buffer.from(data.content, 'base64').toString('utf8');
+  const items = JSON.parse(content);
+  return { items, sha: data.sha };
+}
+
+// Write updated items array back to GitHub
+async function githubWriteFile(items, sha, message) {
+  const content = Buffer.from(JSON.stringify(items, null, 2)).toString('base64');
+  const body = {
+    message: message || 'Update inventory',
+    content,
+    branch: GITHUB_BRANCH,
+  };
+  if (sha) body.sha = sha; // required for updates; omit for first-ever create
+  const result = await httpsRequest({
+    hostname: 'api.github.com',
+    path: `/repos/${GITHUB_REPO}/contents/${GITHUB_PATH}`,
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'production-dashboard',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  }, JSON.stringify(body));
+  if (result.status !== 200 && result.status !== 201) {
+    throw new Error(`GitHub write failed: ${result.status} ${result.body}`);
+  }
+  return JSON.parse(result.body);
+}
+
+// ── Local inventory fallback ────────────────────────────────────────────────
+
+function localRead() {
   try {
     if (!fs.existsSync(INVENTORY_FILE)) return [];
     return JSON.parse(fs.readFileSync(INVENTORY_FILE, 'utf8'));
   } catch (e) {
-    console.warn('readInventory error:', e);
+    console.warn('localRead error:', e);
     return [];
   }
 }
 
-function writeInventory(items) {
+function localWrite(items) {
   fs.writeFileSync(INVENTORY_FILE, JSON.stringify(items, null, 2), 'utf8');
+}
+
+// ── Unified inventory API ───────────────────────────────────────────────────
+
+async function inventoryRead() {
+  if (githubEnabled()) {
+    const { items } = await githubGetFile();
+    return items;
+  }
+  return localRead();
+}
+
+// Returns updated items list (caller uses for response)
+async function inventoryAdd(item) {
+  item.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  item.quantity    = Number(item.quantity)    || 1;
+  item.value       = Number(item.value)       || 0;
+  item.retailValue = Number(item.retailValue) || 0;
+  if (githubEnabled()) {
+    const { items, sha } = await githubGetFile();
+    items.push(item);
+    await githubWriteFile(items, sha, `Add inventory item: ${item.item}`);
+  } else {
+    const items = localRead();
+    items.push(item);
+    localWrite(items);
+  }
+  return item;
+}
+
+async function inventoryUpdate(id, updates) {
+  if (githubEnabled()) {
+    const { items, sha } = await githubGetFile();
+    const idx = items.findIndex(i => i.id === id);
+    if (idx === -1) throw new Error('Not found');
+    items[idx] = { ...items[idx], ...updates, id };
+    items[idx].quantity    = Number(items[idx].quantity)    || 1;
+    items[idx].value       = Number(items[idx].value)       || 0;
+    items[idx].retailValue = Number(items[idx].retailValue) || 0;
+    await githubWriteFile(items, sha, `Update inventory item: ${items[idx].item}`);
+    return items[idx];
+  } else {
+    const items = localRead();
+    const idx = items.findIndex(i => i.id === id);
+    if (idx === -1) throw new Error('Not found');
+    items[idx] = { ...items[idx], ...updates, id };
+    items[idx].quantity    = Number(items[idx].quantity)    || 1;
+    items[idx].value       = Number(items[idx].value)       || 0;
+    items[idx].retailValue = Number(items[idx].retailValue) || 0;
+    localWrite(items);
+    return items[idx];
+  }
+}
+
+async function inventoryDelete(id) {
+  if (githubEnabled()) {
+    const { items, sha } = await githubGetFile();
+    const filtered = items.filter(i => i.id !== id);
+    if (filtered.length === items.length) throw new Error('Not found');
+    await githubWriteFile(filtered, sha, `Delete inventory item ${id}`);
+  } else {
+    const items = localRead();
+    const filtered = items.filter(i => i.id !== id);
+    if (filtered.length === items.length) throw new Error('Not found');
+    localWrite(filtered);
+  }
 }
 
 function newId() {
@@ -206,7 +332,8 @@ const server = http.createServer(async (req, res) => {
   // ── GET /inventory ──────────────────────────────────────────────────────
   if (pathname === '/inventory' && method === 'GET') {
     try {
-      return jsonResponse(res, 200, readInventory());
+      const items = await inventoryRead();
+      return jsonResponse(res, 200, items);
     } catch (e) {
       console.warn('GET /inventory error:', e);
       return jsonResponse(res, 500, { error: e.message });
@@ -217,14 +344,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/inventory/add' && method === 'POST') {
     try {
       const body = await readBody(req);
-      const item = JSON.parse(body);
-      item.id = newId();
-      item.quantity = Number(item.quantity) || 1;
-      item.value = Number(item.value) || 0;
-      item.retailValue = Number(item.retailValue) || 0;
-      const items = readInventory();
-      items.push(item);
-      writeInventory(items);
+      const item = await inventoryAdd(JSON.parse(body));
       return jsonResponse(res, 200, item);
     } catch (e) {
       console.warn('POST /inventory/add error:', e);
@@ -237,19 +357,11 @@ const server = http.createServer(async (req, res) => {
     try {
       const id = pathname.replace('/inventory/update/', '');
       const body = await readBody(req);
-      const updates = JSON.parse(body);
-      const items = readInventory();
-      const idx = items.findIndex(i => i.id === id);
-      if (idx === -1) return jsonResponse(res, 404, { error: 'Not found' });
-      items[idx] = { ...items[idx], ...updates, id };
-      items[idx].quantity = Number(items[idx].quantity) || 1;
-      items[idx].value = Number(items[idx].value) || 0;
-      items[idx].retailValue = Number(items[idx].retailValue) || 0;
-      writeInventory(items);
-      return jsonResponse(res, 200, items[idx]);
+      const item = await inventoryUpdate(id, JSON.parse(body));
+      return jsonResponse(res, 200, item);
     } catch (e) {
       console.warn('PATCH /inventory/update error:', e);
-      return jsonResponse(res, 500, { error: e.message });
+      return jsonResponse(res, e.message === 'Not found' ? 404 : 500, { error: e.message });
     }
   }
 
@@ -257,14 +369,11 @@ const server = http.createServer(async (req, res) => {
   if (pathname.startsWith('/inventory/delete/') && method === 'DELETE') {
     try {
       const id = pathname.replace('/inventory/delete/', '');
-      const items = readInventory();
-      const filtered = items.filter(i => i.id !== id);
-      if (filtered.length === items.length) return jsonResponse(res, 404, { error: 'Not found' });
-      writeInventory(filtered);
+      await inventoryDelete(id);
       return jsonResponse(res, 200, { deleted: true });
     } catch (e) {
       console.warn('DELETE /inventory/delete error:', e);
-      return jsonResponse(res, 500, { error: e.message });
+      return jsonResponse(res, e.message === 'Not found' ? 404 : 500, { error: e.message });
     }
   }
 
@@ -295,4 +404,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Production Dashboard running on port ${PORT}`);
+  console.log(`Inventory backend: ${githubEnabled() ? `GitHub (${GITHUB_REPO})` : 'local file'}`);
 });
