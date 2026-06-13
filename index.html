@@ -191,18 +191,15 @@ a { color: var(--accent); text-decoration: none; }
   grid-template-rows: auto auto auto auto;
   gap: 16px;
 }
-/* Announcements spans full width at top */
-#announcements-widget { grid-column: 1 / 4; grid-row: 1; }
-/* Clock — col 1 row 2 */
+/* Row 1: Announcements (cols 1-2) + Matrix (col 3) */
+#announcements-widget { grid-column: 1 / 3; grid-row: 1; }
+#matrix-widget        { grid-column: 3;     grid-row: 1; }
+/* Row 2: Clock (col 1) + Cal (col 2) + Week (col 3) */
 #clock-widget { grid-column: 1; grid-row: 2; }
-/* Mini calendar — col 2 row 2 */
-#cal-widget { grid-column: 2; grid-row: 2; }
-/* This week — col 3 row 2 */
-#week-widget { grid-column: 3; grid-row: 2; }
-/* Run sheet shortcut — col 1 row 3 */
+#cal-widget   { grid-column: 2; grid-row: 2; }
+#week-widget  { grid-column: 3; grid-row: 2; }
+/* Row 3: Run Sheet (col 1) + continues cal/week if needed */
 #runsheet-widget { grid-column: 1; grid-row: 3; }
-/* Matrix shortcut — col 2-3 row 3 */
-#matrix-widget { grid-column: 2 / 4; grid-row: 3; }
 /* Gaps — full width row 4 */
 #gaps-widget { grid-column: 1 / 4; grid-row: 4; }
 #clock-display {
@@ -1032,7 +1029,7 @@ option.primary-person::before { content: '★ '; }
       <!-- ── Home ──────────────────────────────────────────── -->
       <div class="tab-panel active" id="panel-home">
         <div id="home-grid">
-          <!-- Announcements — row 1, full width -->
+          <!-- Announcements — row 1 cols 1-2 -->
           <div class="card" id="announcements-widget">
             <div class="section-header" style="margin-bottom:12px">
               <div>
@@ -1045,6 +1042,15 @@ option.primary-person::before { content: '★ '; }
               </div>
             </div>
             <div id="announcements-list"><div class="ann-empty">No announcements. Click Post to add one.</div></div>
+          </div>
+
+          <!-- Matrix shortcut — row 1 col 3 -->
+          <div class="card" id="matrix-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px">
+            <div>
+              <div class="section-sub" style="margin-bottom:6px">ROSTER MATRIX</div>
+              <div style="font-size:13px;color:var(--muted)">Manage production team rosters</div>
+            </div>
+            <button class="btn btn-primary" onclick="switchTab('matrix')">Open →</button>
           </div>
 
           <!-- Clock — row 2 col 1 -->
@@ -1074,15 +1080,6 @@ option.primary-person::before { content: '★ '; }
               <div style="font-size:13px;color:var(--muted)">View order of service</div>
             </div>
             <button class="btn btn-primary" onclick="switchTab('runsheet')">Open →</button>
-          </div>
-
-          <!-- Matrix shortcut — row 3 cols 2-3 -->
-          <div class="card" id="matrix-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <div>
-              <div class="section-sub" style="margin-bottom:4px">ROSTER MATRIX</div>
-              <div style="font-size:13px;color:var(--muted)">Manage production team rosters across upcoming services</div>
-            </div>
-            <button class="btn btn-primary" onclick="switchTab('matrix')">Open →</button>
           </div>
 
           <!-- Gaps — row 4 full width -->
