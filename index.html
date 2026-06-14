@@ -223,6 +223,20 @@ a { color: var(--accent); text-decoration: none; }
   align-items: center; justify-content: center;
 }
 .grid-stack.editing .widget-remove-btn { display: flex; }
+/* Quick stats widget */
+.qstat-row { display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.qstat-row:last-child { border-bottom: none; }
+.qstat-label { color: var(--muted); }
+.qstat-val { font-family: var(--mono); font-weight: 600; color: var(--accent); font-size: 16px; }
+/* Confirmations widget */
+.conf-row { display: flex; align-items: center; gap: 8px; padding: 7px 0;
+  border-bottom: 1px solid var(--border); font-size: 13px; }
+.conf-row:last-child { border-bottom: none; }
+.conf-name { font-weight: 500; }
+.conf-meta { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.pos-dot.pos-sound { background: #38BDF8; } .pos-dot.pos-media { background: #A78BFA; }
+.pos-dot.pos-lighting { background: #FBBF24; } .pos-dot.pos-runner { background: #4ADE80; }
 #clock-display {
   font-family: var(--mono); font-size: 84px; font-weight: 600;
   color: var(--accent); letter-spacing: -3px; line-height: 1;
@@ -1153,6 +1167,60 @@ option.primary-person::before { content: '★ '; }
             </div>
           </div>
 
+          <!-- Live Run Sheet (optional widget) -->
+          <div class="grid-stack-item" gs-x="0" gs-y="12" gs-w="6" gs-h="6" gs-id="liverunsheet" style="display:none">
+            <div class="grid-stack-item-content card" id="liverunsheet-widget">
+              <div class="section-header" style="margin-bottom:10px">
+                <div>
+                  <div class="section-title">Live Run Sheet</div>
+                  <div class="section-sub" id="liverunsheet-sub">Next service</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="buildLiveRunSheet()">↺</button>
+              </div>
+              <div id="liverunsheet-content" style="overflow-y:auto;flex:1;min-height:0"><div class="state-msg">Loading…</div></div>
+            </div>
+          </div>
+
+          <!-- Next Service Countdown (optional widget) -->
+          <div class="grid-stack-item" gs-x="6" gs-y="12" gs-w="3" gs-h="3" gs-id="countdown" style="display:none">
+            <div class="grid-stack-item-content card" id="countdown-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+              <div class="section-sub" style="margin-bottom:8px">NEXT SERVICE</div>
+              <div id="countdown-value" style="font-family:var(--mono);font-size:32px;font-weight:600;color:var(--accent);line-height:1">—</div>
+              <div id="countdown-label" style="font-size:12px;color:var(--muted);margin-top:8px">—</div>
+            </div>
+          </div>
+
+          <!-- Quick Stats (optional widget) -->
+          <div class="grid-stack-item" gs-x="9" gs-y="12" gs-w="3" gs-h="3" gs-id="quickstats" style="display:none">
+            <div class="grid-stack-item-content card" id="quickstats-widget">
+              <div class="section-sub" style="margin-bottom:10px">QUICK STATS</div>
+              <div id="quickstats-content"><div class="state-msg">Loading…</div></div>
+            </div>
+          </div>
+
+          <!-- Notes / Scratchpad (optional widget) -->
+          <div class="grid-stack-item" gs-x="0" gs-y="18" gs-w="4" gs-h="4" gs-id="notes" style="display:none">
+            <div class="grid-stack-item-content card" id="notes-widget">
+              <div class="section-sub" style="margin-bottom:10px">NOTES</div>
+              <textarea id="notes-text" oninput="saveNotes()" placeholder="Quick notes (saved on this device)…"
+                style="flex:1;width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:10px;font-family:var(--font);font-size:13px;resize:none;outline:none;min-height:0"></textarea>
+            </div>
+          </div>
+
+          <!-- Confirmation Tracker (optional widget) -->
+          <div class="grid-stack-item" gs-x="4" gs-y="18" gs-w="4" gs-h="4" gs-id="confirmations" style="display:none">
+            <div class="grid-stack-item-content card" id="confirmations-widget">
+              <div class="section-header" style="margin-bottom:10px">
+                <div>
+                  <div class="section-title">Confirmations</div>
+                  <div class="section-sub">Pending responses this month</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="buildConfirmations()">↺</button>
+              </div>
+              <div id="confirmations-content" style="overflow-y:auto;flex:1;min-height:0"><div class="state-msg">Loading…</div></div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -1955,6 +2023,14 @@ function initHomeGrid() {
       breakpoints: [{ w: 768, c: 1 }],  // 1 column when window ≤ 768px
     },
   }, '#home-grid');
+
+  // Optional widgets start off the grid (added via menu)
+  const OPTIONAL = ['liverunsheet', 'countdown', 'quickstats', 'notes', 'confirmations'];
+  OPTIONAL.forEach(id => {
+    const el = document.querySelector(`.grid-stack-item[gs-id="${id}"]`);
+    if (el) { homeGrid.removeWidget(el, false); el.style.display = 'none'; }
+  });
+
   loadHomeLayout();
 }
 
@@ -2055,6 +2131,145 @@ function refreshHome() {
   toast('Home refreshed.', 'success');
 }
 
+// ── New optional widget builders ───────────────────────────────────
+
+// Find the next upcoming service (today or future, soonest first)
+function getNextService() {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = allCalEvents
+    .filter(e => e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return upcoming[0] || null;
+}
+
+// Live Run Sheet — shows next service's order of service
+function buildLiveRunSheet() {
+  const sub = document.getElementById('liverunsheet-sub');
+  const content = document.getElementById('liverunsheet-content');
+  if (!content) return;
+  const next = getNextService();
+  if (!next) {
+    if (sub) sub.textContent = 'No upcoming service';
+    content.innerHTML = '<div class="state-msg">No upcoming services found.</div>';
+    return;
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = new Date(next.date + 'T12:00:00');
+  if (sub) sub.textContent = `${next.name} · ${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  loadRunSheetInto(next.stId, next.plan.id, content);
+}
+
+// Next Service Countdown
+let countdownInterval = null;
+function buildCountdown() {
+  const valEl = document.getElementById('countdown-value');
+  const lblEl = document.getElementById('countdown-label');
+  if (!valEl) return;
+  const next = getNextService();
+  if (!next) {
+    valEl.textContent = '—';
+    if (lblEl) lblEl.textContent = 'No upcoming service';
+    return;
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = new Date(next.date + 'T12:00:00');
+  if (lblEl) lblEl.textContent = `${next.name} · ${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+
+  function tick() {
+    const target = new Date(next.date + 'T00:00:00');
+    const now = new Date();
+    const diffMs = target - now;
+    if (diffMs <= 0) {
+      valEl.textContent = 'Today';
+      return;
+    }
+    const days = Math.floor(diffMs / 86400000);
+    const hours = Math.floor((diffMs % 86400000) / 3600000);
+    if (days > 0) {
+      valEl.textContent = `${days}d ${hours}h`;
+    } else {
+      const mins = Math.floor((diffMs % 3600000) / 60000);
+      valEl.textContent = `${hours}h ${mins}m`;
+    }
+  }
+  tick();
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(tick, 60000);
+}
+
+// Quick Stats
+function buildQuickStats() {
+  const content = document.getElementById('quickstats-content');
+  if (!content) return;
+  const now = new Date();
+  const thisMonth = now.toISOString().slice(0, 7);
+  const servicesThisMonth = allCalEvents.filter(e => e.date.slice(0, 7) === thisMonth).length;
+  const teamSize = (typeof teamPeople !== 'undefined' && teamPeople) ? teamPeople.length : 0;
+  const positions = (typeof teamPositions !== 'undefined' && teamPositions) ? teamPositions.length : 0;
+
+  content.innerHTML = `
+    <div class="qstat-row"><span class="qstat-label">Team members</span><span class="qstat-val">${teamSize}</span></div>
+    <div class="qstat-row"><span class="qstat-label">Positions</span><span class="qstat-val">${positions}</span></div>
+    <div class="qstat-row"><span class="qstat-label">Services this month</span><span class="qstat-val">${servicesThisMonth}</span></div>
+  `;
+}
+
+// Notes (localStorage)
+function loadNotes() {
+  const ta = document.getElementById('notes-text');
+  if (ta) ta.value = localStorage.getItem('home-notes') || '';
+}
+function saveNotes() {
+  const ta = document.getElementById('notes-text');
+  if (ta) localStorage.setItem('home-notes', ta.value);
+}
+
+// Confirmation tracker — pending (U) responses in upcoming Sunday plans
+async function buildConfirmations() {
+  const content = document.getElementById('confirmations-content');
+  if (!content) return;
+  content.innerHTML = '<div class="state-msg"><div class="spinner"></div></div>';
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = allCalEvents
+    .filter(e => e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 6);
+
+  const pending = [];
+  for (const ev of upcoming) {
+    try {
+      const data = await pcoGet(`/services/v2/service_types/${ev.stId}/plans/${ev.plan.id}/team_members?per_page=100`);
+      (data.data || []).forEach(m => {
+        if (m.attributes.status === 'U' &&
+            teamPeople.some(tp => tp.id === m.relationships.person.data.id)) {
+          pending.push({
+            name: m.attributes.name,
+            pos: m.attributes.team_position_name,
+            date: ev.date,
+          });
+        }
+      });
+    } catch (e) { /* skip */ }
+  }
+
+  if (!pending.length) {
+    content.innerHTML = '<div style="color:var(--green);font-size:13px;padding:8px 0">All responses confirmed 🎉</div>';
+    return;
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  content.innerHTML = pending.map(p => {
+    const d = new Date(p.date + 'T12:00:00');
+    const pc = posClass(p.pos);
+    return `<div class="conf-row">
+      <span class="pos-dot ${pc}"></span>
+      <span class="conf-name">${esc(p.name)}</span>
+      <span class="conf-meta">${esc(p.pos)} · ${DAYS[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}</span>
+    </div>`;
+  }).join('');
+}
+
 // ── Widget menu (add hidden widgets back to the grid) ──────────────
 const WIDGET_LABELS = {
   announcements: 'Flags',
@@ -2064,6 +2279,11 @@ const WIDGET_LABELS = {
   cal: 'Calendar',
   week: "This Week's Services",
   gaps: 'Roster Gaps',
+  liverunsheet: 'Live Run Sheet',
+  countdown: 'Next Service Countdown',
+  quickstats: 'Quick Stats',
+  notes: 'Notes',
+  confirmations: 'Confirmations',
 };
 
 function openWidgetMenu() {
@@ -2099,6 +2319,11 @@ function addWidgetToGrid(id) {
   if (id === 'gaps') buildGapsList();
   if (id === 'cal') buildMiniCal();
   if (id === 'announcements') loadAnnouncements();
+  if (id === 'liverunsheet') buildLiveRunSheet();
+  if (id === 'countdown') buildCountdown();
+  if (id === 'quickstats') buildQuickStats();
+  if (id === 'notes') loadNotes();
+  if (id === 'confirmations') buildConfirmations();
   toast(WIDGET_LABELS[id] + ' added.', 'success');
 }
 
