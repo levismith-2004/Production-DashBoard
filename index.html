@@ -499,6 +499,8 @@ a { color: var(--accent); text-decoration: none; }
 }
 .runsheet-item.live-active .runsheet-title { color: var(--accent); font-weight: 600; }
 .runsheet-item.live-done { opacity: .4; }
+.runsheet-item.live-clickable { cursor: pointer; }
+#live-controls { display: none; align-items: center; }
 .runsheet-seq {
   font-family: var(--mono); font-size: 11px; color: var(--muted2);
   padding-top: 3px; text-align: right; padding-right: 12px;
@@ -1291,6 +1293,10 @@ option.primary-person::before { content: '★ '; }
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <span id="live-clock-display" style="display:none;font-family:var(--mono);font-size:13px;color:var(--accent)"></span>
+            <span id="live-controls" style="display:none;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="livePrev()">‹ Prev</button>
+              <button class="btn btn-ghost btn-sm" onclick="liveNext()">Next ›</button>
+            </span>
             <button class="btn btn-ghost btn-sm" id="live-runsheet-btn" onclick="toggleLiveRunSheet()" style="display:none">▶ Go Live</button>
           </div>
         </div>
@@ -3443,12 +3449,12 @@ async function loadRunSheetInto(stId, planId, container, trackLive) {
     }
 
     const songs = items.filter(i => (i.attributes.item_type||'').toLowerCase() === 'song');
-    const totalLengthMs = items.reduce((s, i) => s + (i.attributes.length || 0), 0);
-    const fmtDuration = (ms) => {
-      if (!ms) return '—';
-      const totalSec = Math.round(ms / 1000);
-      const m = Math.floor(totalSec / 60);
-      const s = totalSec % 60;
+    // PCO 'length' is in SECONDS
+    const totalLengthSec = items.reduce((s, i) => s + (i.attributes.length || 0), 0);
+    const fmtDuration = (sec) => {
+      if (!sec) return '—';
+      const m = Math.floor(sec / 60);
+      const s = Math.round(sec % 60);
       return `${m}:${String(s).padStart(2,'0')}`;
     };
     const typeClass = (t) => {
@@ -3472,12 +3478,12 @@ async function loadRunSheetInto(stId, planId, container, trackLive) {
       </div>
       <div class="runsheet-header-stat">
         <div class="runsheet-header-stat-label">Total Length</div>
-        <div class="runsheet-header-stat-val">${fmtDuration(totalLengthMs)}</div>
+        <div class="runsheet-header-stat-val">${fmtDuration(totalLengthSec)}</div>
       </div>
     </div>`;
 
-    // Track cumulative time for live highlighting
-    let cumulativeMs = 0;
+    // Track cumulative time (seconds) for live highlighting
+    let cumulativeSec = 0;
     let seq = 0;
     let liveIdx = 0;
     items.forEach(item => {
@@ -3491,11 +3497,11 @@ async function loadRunSheetInto(stId, planId, container, trackLive) {
       seq++;
       const dur = fmtDuration(a.length);
       const tc = typeClass(type);
-      const itemLen = a.length || 0;
+      const itemLen = a.length || 0; // seconds
       const dataAttrs = trackLive
-        ? `data-live-idx="${liveIdx}" data-start-ms="${cumulativeMs}" data-len-ms="${itemLen}"`
+        ? `data-live-idx="${liveIdx}" data-start-sec="${cumulativeSec}" data-len-sec="${itemLen}" onclick="setLiveItem(${liveIdx})"`
         : '';
-      html += `<div class="runsheet-item" ${dataAttrs}>
+      html += `<div class="runsheet-item${trackLive ? ' live-clickable' : ''}" ${dataAttrs}>
         <div class="runsheet-seq">${String(seq).padStart(2,'0')}</div>
         <div style="padding-top:2px"><span class="runsheet-type-badge ${tc}">${esc(type || 'Item')}</span></div>
         <div class="runsheet-body">
@@ -3505,7 +3511,7 @@ async function loadRunSheetInto(stId, planId, container, trackLive) {
         </div>
         <div class="runsheet-duration">${dur !== '—' ? dur : ''}</div>
       </div>`;
-      cumulativeMs += itemLen;
+      cumulativeSec += itemLen;
       liveIdx++;
     });
 
@@ -3519,6 +3525,8 @@ async function loadRunSheetInto(stId, planId, container, trackLive) {
 // ── Live run sheet tracking ────────────────────────────────────────
 let liveRunSheetStart = null;
 let liveRunSheetInterval = null;
+let liveCurrentIdx = 0;
+let liveAutoAdvance = false;
 
 function toggleLiveRunSheet() {
   if (liveRunSheetStart) {
@@ -3530,30 +3538,70 @@ function toggleLiveRunSheet() {
 
 function startLiveRunSheet() {
   liveRunSheetStart = Date.now();
+  liveCurrentIdx = 0;
+
+  // Does this plan have item lengths? If so, offer auto-advance
+  const items = document.querySelectorAll('#runsheet-content .runsheet-item[data-live-idx]');
+  const hasLengths = [...items].some(el => (parseInt(el.dataset.lenSec) || 0) > 0);
+  liveAutoAdvance = hasLengths;
+
   const btn = document.getElementById('live-runsheet-btn');
   if (btn) { btn.textContent = '■ Stop Live'; btn.classList.add('btn-primary'); btn.classList.remove('btn-ghost'); }
   const clock = document.getElementById('live-clock-display');
   if (clock) clock.style.display = 'inline';
-  updateLiveHighlight();
-  liveRunSheetInterval = setInterval(updateLiveHighlight, 1000);
+  // Show prev/next controls
+  document.getElementById('live-controls').style.display = 'inline-flex';
+  setLiveItem(0);
+  liveRunSheetInterval = setInterval(updateLiveClock, 1000);
 }
 
 function stopLiveRunSheet() {
   liveRunSheetStart = null;
+  liveCurrentIdx = 0;
   if (liveRunSheetInterval) { clearInterval(liveRunSheetInterval); liveRunSheetInterval = null; }
   const btn = document.getElementById('live-runsheet-btn');
   if (btn) { btn.textContent = '▶ Go Live'; btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost'); }
   const clock = document.getElementById('live-clock-display');
   if (clock) clock.style.display = 'none';
+  const ctrls = document.getElementById('live-controls');
+  if (ctrls) ctrls.style.display = 'none';
   document.querySelectorAll('.runsheet-item.live-active, .runsheet-item.live-done')
     .forEach(el => el.classList.remove('live-active', 'live-done'));
 }
 
-function updateLiveHighlight() {
-  if (!liveRunSheetStart) return;
-  const elapsed = Date.now() - liveRunSheetStart;
+// Set the active item by index (used by click, next/prev, and auto-advance)
+function setLiveItem(idx) {
+  if (liveRunSheetStart === null) return;
+  const items = [...document.querySelectorAll('#runsheet-content .runsheet-item[data-live-idx]')];
+  if (!items.length) return;
+  idx = Math.max(0, Math.min(idx, items.length - 1));
+  liveCurrentIdx = idx;
 
-  // Update elapsed clock display
+  items.forEach((el, i) => {
+    el.classList.remove('live-active', 'live-done');
+    if (i < idx) el.classList.add('live-done');
+    else if (i === idx) el.classList.add('live-active');
+  });
+
+  const activeEl = items[idx];
+  if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function liveNext() {
+  setLiveItem(liveCurrentIdx + 1);
+  // Reset the per-item timer reference point for auto-advance
+  liveItemStartedAt = Date.now();
+}
+function livePrev() {
+  setLiveItem(liveCurrentIdx - 1);
+  liveItemStartedAt = Date.now();
+}
+
+let liveItemStartedAt = null;
+
+function updateLiveClock() {
+  if (liveRunSheetStart === null) return;
+  const elapsed = Date.now() - liveRunSheetStart;
   const clock = document.getElementById('live-clock-display');
   if (clock) {
     const totalSec = Math.floor(elapsed / 1000);
@@ -3562,21 +3610,21 @@ function updateLiveHighlight() {
     clock.textContent = `● LIVE ${mm}:${String(ss).padStart(2,'0')}`;
   }
 
-  const items = document.querySelectorAll('#runsheet-content .runsheet-item[data-live-idx]');
-  let activeEl = null;
-  items.forEach(el => {
-    const start = parseInt(el.dataset.startMs) || 0;
-    const len = parseInt(el.dataset.lenMs) || 0;
-    el.classList.remove('live-active', 'live-done');
-    if (elapsed >= start && (len === 0 || elapsed < start + len)) {
-      if (!activeEl) { el.classList.add('live-active'); activeEl = el; }
-    } else if (elapsed >= start + len && len > 0) {
-      el.classList.add('live-done');
+  // Auto-advance based on the current item's length (if available)
+  if (liveAutoAdvance) {
+    const items = [...document.querySelectorAll('#runsheet-content .runsheet-item[data-live-idx]')];
+    const cur = items[liveCurrentIdx];
+    if (cur) {
+      const lenSec = parseInt(cur.dataset.lenSec) || 0;
+      if (lenSec > 0) {
+        if (liveItemStartedAt === null) liveItemStartedAt = Date.now();
+        const itemElapsed = (Date.now() - liveItemStartedAt) / 1000;
+        if (itemElapsed >= lenSec && liveCurrentIdx < items.length - 1) {
+          liveNext();
+        }
+      }
     }
-  });
-
-  // Auto-scroll active item into view
-  if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
