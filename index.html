@@ -1877,8 +1877,17 @@ function initHomeGrid() {
     disableDrag: true,
     disableResize: true,
     float: true,
+    columnOpts: {
+      breakpointForWindow: true,
+      breakpoints: [{ w: 768, c: 1 }],  // 1 column when window ≤ 768px
+    },
   }, '#home-grid');
   loadHomeLayout();
+}
+
+// Which layout key to use based on screen width
+function layoutKey() {
+  return window.innerWidth <= 768 ? 'mobile' : 'desktop';
 }
 
 function toggleLayoutEdit() {
@@ -1905,9 +1914,9 @@ async function saveHomeLayout() {
     await fetch('/homelayout/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(layout),
+      body: JSON.stringify({ key: layoutKey(), layout }),
     });
-    toast('Layout saved.', 'success');
+    toast('Layout saved for ' + layoutKey() + '.', 'success');
   } catch (e) { console.warn('saveHomeLayout error:', e); }
 }
 
@@ -1915,7 +1924,8 @@ async function loadHomeLayout() {
   if (!homeGrid) return;
   try {
     const res = await fetch('/homelayout');
-    const layout = await res.json();
+    const data = await res.json();
+    const layout = data[layoutKey()];
     if (Array.isArray(layout) && layout.length) {
       homeGrid.batchUpdate();
       layout.forEach(node => {

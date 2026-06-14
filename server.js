@@ -420,15 +420,15 @@ async function homeLayoutRead() {
           'X-GitHub-Api-Version': '2022-11-28',
         },
       });
-      if (result.status === 404) return [];
+      if (result.status === 404) return {};
       const data = JSON.parse(result.body);
       return JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
-    } catch (e) { return []; }
+    } catch (e) { return {}; }
   }
   try {
-    if (!fs.existsSync(HOMELAYOUT_FILE)) return [];
+    if (!fs.existsSync(HOMELAYOUT_FILE)) return {};
     return JSON.parse(fs.readFileSync(HOMELAYOUT_FILE, 'utf8'));
-  } catch (e) { return []; }
+  } catch (e) { return {}; }
 }
 
 async function homeLayoutSave(data) {
@@ -637,7 +637,12 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/homelayout/save' && method === 'POST') {
     try {
       const body = await readBody(req);
-      await homeLayoutSave(JSON.parse(body));
+      const { key, layout } = JSON.parse(body);
+      // Merge into existing object so we don't wipe the other layout
+      let existing = await homeLayoutRead();
+      if (Array.isArray(existing)) existing = {}; // migrate old array format
+      existing[key] = layout;
+      await homeLayoutSave(existing);
       return jsonResponse(res, 200, { ok: true });
     } catch (e) {
       console.warn('POST /homelayout/save error:', e);
