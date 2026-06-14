@@ -189,16 +189,17 @@ a { color: var(--accent); text-decoration: none; }
 /* ── Home tab — GridStack ────────────────────────────────────── */
 .grid-stack { background: transparent; }
 .grid-stack-item-content {
-  inset: 0; overflow: hidden !important;
+  inset: 8px; overflow: hidden !important;
   display: flex; flex-direction: column;
 }
-/* The card fills the grid item */
+/* The card fills the grid item with gap via inset */
 .grid-stack-item-content.card {
-  height: 100%; width: 100%;
+  position: absolute; top: 8px; left: 8px; right: 8px; bottom: 8px;
+  height: auto; width: auto;
 }
 /* Make widget content scroll if too big rather than overflow */
 #announcements-list, #gaps-list, #week-services { overflow-y: auto; flex: 1; min-height: 0; }
-#mini-cal { flex: 1; min-height: 0; }
+#mini-cal { flex: 1; min-height: 0; overflow-y: auto; }
 /* Edit mode visual cue */
 .grid-stack.editing .grid-stack-item-content.card {
   border-color: var(--accent); border-style: dashed; cursor: move;
@@ -1071,7 +1072,7 @@ option.primary-person::before { content: '★ '; }
           </div>
 
           <!-- Clock -->
-          <div class="grid-stack-item" gs-x="0" gs-y="2" gs-w="4" gs-h="3" gs-id="clock">
+          <div class="grid-stack-item" gs-x="0" gs-y="2" gs-w="4" gs-h="4" gs-id="clock">
             <div class="grid-stack-item-content card" id="clock-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
               <div id="clock-display">
                 <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
@@ -1081,7 +1082,7 @@ option.primary-person::before { content: '★ '; }
           </div>
 
           <!-- Run Sheet -->
-          <div class="grid-stack-item" gs-x="0" gs-y="5" gs-w="4" gs-h="2" gs-id="runsheet">
+          <div class="grid-stack-item" gs-x="0" gs-y="6" gs-w="4" gs-h="3" gs-id="runsheet">
             <div class="grid-stack-item-content card" id="runsheet-widget" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
               <div>
                 <div class="section-sub" style="margin-bottom:4px;font-size:14px">RUN SHEET</div>
@@ -1092,7 +1093,7 @@ option.primary-person::before { content: '★ '; }
           </div>
 
           <!-- Mini calendar -->
-          <div class="grid-stack-item" gs-x="4" gs-y="2" gs-w="4" gs-h="5" gs-id="cal">
+          <div class="grid-stack-item" gs-x="4" gs-y="2" gs-w="4" gs-h="7" gs-id="cal">
             <div class="grid-stack-item-content card" id="cal-widget">
               <div class="section-sub" style="margin-bottom:10px">THIS MONTH</div>
               <div id="mini-cal"></div>
@@ -1100,7 +1101,7 @@ option.primary-person::before { content: '★ '; }
           </div>
 
           <!-- This week -->
-          <div class="grid-stack-item" gs-x="8" gs-y="2" gs-w="4" gs-h="5" gs-id="week">
+          <div class="grid-stack-item" gs-x="8" gs-y="2" gs-w="4" gs-h="7" gs-id="week">
             <div class="grid-stack-item-content card" id="week-widget">
               <div class="section-sub" style="margin-bottom:10px">THIS WEEK'S SERVICES</div>
               <div id="week-services"><div class="state-msg">Loading…</div></div>
@@ -1108,7 +1109,7 @@ option.primary-person::before { content: '★ '; }
           </div>
 
           <!-- Gaps -->
-          <div class="grid-stack-item" gs-x="0" gs-y="7" gs-w="12" gs-h="3" gs-id="gaps">
+          <div class="grid-stack-item" gs-x="0" gs-y="9" gs-w="12" gs-h="3" gs-id="gaps">
             <div class="grid-stack-item-content card" id="gaps-widget">
               <div class="section-header">
                 <div>
@@ -1870,8 +1871,9 @@ function initHomeGrid() {
   if (homeGrid || typeof GridStack === 'undefined') return;
   homeGrid = GridStack.init({
     column: 12,
-    cellHeight: 70,
+    cellHeight: 64,
     margin: 8,
+    marginUnit: 'px',
     disableDrag: true,
     disableResize: true,
     float: true,
