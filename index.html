@@ -205,6 +205,24 @@ a { color: var(--accent); text-decoration: none; }
   border-color: var(--accent); border-style: dashed; cursor: move;
 }
 .grid-stack-item > .ui-resizable-handle { z-index: 5; }
+/* Widget menu */
+.widget-menu-list { display: flex; flex-direction: column; gap: 8px; }
+.widget-menu-item {
+  text-align: left; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: all .15s;
+}
+.widget-menu-item:hover { border-color: var(--accent); color: var(--accent); }
+/* Remove-widget button (shown in edit mode) */
+.widget-remove-btn {
+  position: absolute; top: 6px; right: 6px; z-index: 10;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--red); color: #fff; border: none; cursor: pointer;
+  font-size: 14px; line-height: 1; display: none;
+  align-items: center; justify-content: center;
+}
+.grid-stack.editing .widget-remove-btn { display: flex; }
 #clock-display {
   font-family: var(--mono); font-size: 84px; font-weight: 600;
   color: var(--accent); letter-spacing: -3px; line-height: 1;
@@ -222,9 +240,11 @@ a { color: var(--accent); text-decoration: none; }
 .cal-day {
   aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: 11px; border-radius: 4px;
-  color: var(--muted); position: relative; cursor: default;
+  color: var(--muted); position: relative; cursor: pointer;
+  transition: background .12s;
 }
-.cal-day.other-month { color: var(--muted2); opacity: .4; }
+.cal-day:not(.other-month):hover { background: var(--surface2); }
+.cal-day.other-month { color: var(--muted2); opacity: .4; cursor: default; }
 .cal-day.today { background: var(--accent-glow); color: var(--accent);
   border: 1px solid var(--accent); font-weight: 600; }
 .cal-day.has-service::after {
@@ -232,6 +252,13 @@ a { color: var(--accent); text-decoration: none; }
   width: 4px; height: 4px; border-radius: 50%; background: var(--accent2);
 }
 .cal-day.today.has-service::after { background: var(--bg); }
+/* Calendar day overview */
+.cal-day-overview { display: flex; flex-direction: column; gap: 8px; }
+.cal-day-event {
+  padding: 10px 12px; background: var(--surface2); border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+}
+.cal-day-event-name { font-size: 13px; font-weight: 500; }
 
 /* This week */
 .week-service-row {
@@ -248,8 +275,11 @@ a { color: var(--accent); text-decoration: none; }
   font-family: var(--mono); font-size: 12px; padding: 4px 12px;
   border-radius: var(--radius-sm); border: 1px solid var(--border2);
   background: var(--surface2); color: var(--muted); cursor: pointer;
-  transition: all .15s;
+  transition: all .15s; display: flex; flex-direction: column;
+  align-items: center; gap: 1px; line-height: 1.2;
 }
+.week-tab-dow { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; opacity: .8; }
+.week-tab-date { font-size: 12px; font-weight: 600; }
 .week-tab:hover { color: var(--text); border-color: var(--accent); }
 .week-tab.active { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
 .pos-pill {
@@ -1038,7 +1068,9 @@ option.primary-person::before { content: '★ '; }
 
       <!-- ── Home ──────────────────────────────────────────── -->
       <div class="tab-panel active" id="panel-home">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" onclick="refreshHome()">↺ Refresh</button>
+          <button class="btn btn-ghost btn-sm" id="add-widget-btn" onclick="openWidgetMenu()">+ Add Widget</button>
           <button class="btn btn-ghost btn-sm" id="layout-edit-btn" onclick="toggleLayoutEdit()">✏️ Edit Layout</button>
         </div>
         <div class="grid-stack" id="home-grid">
@@ -1048,7 +1080,7 @@ option.primary-person::before { content: '★ '; }
             <div class="grid-stack-item-content card" id="announcements-widget">
               <div class="section-header" style="margin-bottom:12px">
                 <div>
-                  <div class="section-title">📢 Team Announcements</div>
+                  <div class="section-title">Flags</div>
                   <div class="section-sub">Pinned messages for the production team</div>
                 </div>
                 <div style="display:flex;gap:6px">
@@ -1424,6 +1456,19 @@ option.primary-person::before { content: '★ '; }
   </div>
 </div>
 
+<!-- ── Widget menu modal ───────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="widget-menu-modal">
+  <div class="modal" style="width:380px">
+    <div class="modal-header">
+      <div class="modal-title">Add Widget</div>
+      <button class="btn btn-icon" onclick="closeWidgetMenu()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="widget-menu-list" class="widget-menu-list"></div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /app -->
 
 <!-- ── Toast container ─────────────────────────────────────────── -->
@@ -1724,10 +1769,38 @@ function buildMiniCal() {
     const isToday = d === now.getDate();
     const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const hasService = allCalEvents.some(e => e.date === dateStr);
-    html += `<div class="cal-day${isToday?' today':''}${hasService?' has-service':''}">${d}</div>`;
+    html += `<div class="cal-day${isToday?' today':''}${hasService?' has-service':''}" onclick="showMiniCalDay('${dateStr}')">${d}</div>`;
   }
   html += '</div>';
   document.getElementById('mini-cal').innerHTML = html;
+}
+
+function showMiniCalDay(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const heading = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+
+  const events = allCalEvents.filter(e => e.date === dateStr)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  let body;
+  if (!events.length) {
+    body = '<div style="color:var(--muted);font-size:13px;padding:8px 0">No services scheduled this day.</div>';
+  } else {
+    body = events.map(e =>
+      `<div class="cal-day-event">
+        <div class="cal-day-event-name">${esc(e.name)}</div>
+      </div>`
+    ).join('');
+  }
+
+  document.getElementById('mini-cal').innerHTML = `
+    <div class="mini-cal-header" style="gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="buildMiniCal()" style="padding:2px 8px">← Back</button>
+      <span style="font-size:13px">${heading}</span>
+    </div>
+    <div class="cal-day-overview">${body}</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1900,9 +1973,25 @@ function toggleLayoutEdit() {
   if (layoutEditing) {
     btn.textContent = '✓ Done';
     btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+    // Inject remove buttons into each visible widget
+    document.querySelectorAll('.grid-stack-item').forEach(el => {
+      if (el.style.display === 'none') return;
+      const id = el.getAttribute('gs-id');
+      const content = el.querySelector('.grid-stack-item-content');
+      if (content && !content.querySelector('.widget-remove-btn')) {
+        const rm = document.createElement('button');
+        rm.className = 'widget-remove-btn';
+        rm.textContent = '✕';
+        rm.title = 'Remove widget';
+        rm.onclick = (e) => { e.stopPropagation(); removeWidgetFromGrid(id); };
+        content.appendChild(rm);
+      }
+    });
   } else {
     btn.textContent = '✏️ Edit Layout';
     btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost');
+    // Remove the remove-buttons
+    document.querySelectorAll('.widget-remove-btn').forEach(b => b.remove());
     saveHomeLayout();
   }
 }
@@ -1928,14 +2017,99 @@ async function loadHomeLayout() {
     const layout = data[layoutKey()];
     if (Array.isArray(layout) && layout.length) {
       homeGrid.batchUpdate();
+      // First hide widgets not in the saved layout, show those that are
+      const savedIds = new Set(layout.map(n => n.id));
+      document.querySelectorAll('.grid-stack-item').forEach(el => {
+        const id = el.getAttribute('gs-id');
+        if (savedIds.has(id)) {
+          el.style.display = '';
+        } else {
+          // Widget not in saved layout — remove from grid (available to add back)
+          homeGrid.removeWidget(el, false);
+          el.style.display = 'none';
+        }
+      });
       layout.forEach(node => {
         if (!node.id) return;
         const el = document.querySelector(`.grid-stack-item[gs-id="${node.id}"]`);
-        if (el) homeGrid.update(el, { x: node.x, y: node.y, w: node.w, h: node.h });
+        if (el) {
+          el.style.display = '';
+          homeGrid.makeWidget(el);
+          homeGrid.update(el, { x: node.x, y: node.y, w: node.w, h: node.h });
+        }
       });
       homeGrid.commit();
     }
   } catch (e) { console.warn('loadHomeLayout error:', e); }
+}
+
+// Refresh all home data from server/PCO
+function refreshHome() {
+  loadAnnouncements();
+  loadHomeLayout();
+  if (calendarDataReady) {
+    buildWeekServices();
+    buildGapsList();
+    buildMiniCal();
+  }
+  toast('Home refreshed.', 'success');
+}
+
+// ── Widget menu (add hidden widgets back to the grid) ──────────────
+const WIDGET_LABELS = {
+  announcements: 'Flags',
+  matrix: 'Roster Matrix',
+  clock: 'Clock',
+  runsheet: 'Run Sheet',
+  cal: 'Calendar',
+  week: "This Week's Services",
+  gaps: 'Roster Gaps',
+};
+
+function openWidgetMenu() {
+  // Find widgets currently NOT on the grid
+  const onGrid = new Set(homeGrid.engine.nodes.map(n => n.el.getAttribute('gs-id')));
+  const available = Object.keys(WIDGET_LABELS).filter(id => !onGrid.has(id));
+
+  const listHtml = available.length
+    ? available.map(id =>
+        `<button class="widget-menu-item" onclick="addWidgetToGrid('${id}')">${esc(WIDGET_LABELS[id])}</button>`
+      ).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:12px">All widgets are already on your dashboard.</div>';
+
+  document.getElementById('widget-menu-list').innerHTML = listHtml;
+  document.getElementById('widget-menu-modal').classList.remove('hidden');
+}
+
+function closeWidgetMenu() {
+  document.getElementById('widget-menu-modal').classList.add('hidden');
+}
+
+function addWidgetToGrid(id) {
+  const el = document.querySelector(`.grid-stack-item[gs-id="${id}"]`);
+  if (!el) return;
+  el.style.display = '';
+  homeGrid.makeWidget(el);
+  // Place at bottom
+  homeGrid.update(el, { x: 0, y: 1000, w: 4, h: 3 });
+  closeWidgetMenu();
+  saveHomeLayout();
+  // Re-render any data the widget needs
+  if (id === 'week') buildWeekServices();
+  if (id === 'gaps') buildGapsList();
+  if (id === 'cal') buildMiniCal();
+  if (id === 'announcements') loadAnnouncements();
+  toast(WIDGET_LABELS[id] + ' added.', 'success');
+}
+
+// Remove a widget from the grid (X button in edit mode)
+function removeWidgetFromGrid(id) {
+  const el = document.querySelector(`.grid-stack-item[gs-id="${id}"]`);
+  if (!el) return;
+  homeGrid.removeWidget(el, false);
+  el.style.display = 'none';
+  saveHomeLayout();
+  toast(WIDGET_LABELS[id] + ' removed.', 'success');
 }
 
 // Map position name to CSS class for colour stripe
@@ -2003,11 +2177,17 @@ async function buildWeekServices() {
 
 function renderWeekServices(activeIdx) {
   const container = document.getElementById('week-services');
+  const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  // Tabs row
+  // Tabs row — day name above the date
   const tabs = weekServicesData.map((s, i) => {
+    const d = new Date(s.date + 'T12:00:00');
+    const dayLabel = DOW[d.getDay()];
     const dateLabel = s.date.slice(5).replace('-', '/');
-    return `<button class="week-tab${i === activeIdx ? ' active' : ''}" onclick="renderWeekServices(${i})">${dateLabel}</button>`;
+    return `<button class="week-tab${i === activeIdx ? ' active' : ''}" onclick="renderWeekServices(${i})">
+      <span class="week-tab-dow">${dayLabel}</span>
+      <span class="week-tab-date">${dateLabel}</span>
+    </button>`;
   }).join('');
 
   // Active service positions
