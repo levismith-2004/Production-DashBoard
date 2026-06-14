@@ -223,6 +223,17 @@ a { color: var(--accent); text-decoration: none; }
   align-items: center; justify-content: center;
 }
 .grid-stack.editing .widget-remove-btn { display: flex; }
+/* Theme customizer */
+.color-input {
+  width: 48px; height: 32px; padding: 2px; border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); background: var(--surface2); cursor: pointer;
+}
+.theme-toggle { display: flex; gap: 0; border: 1px solid var(--border2); border-radius: var(--radius-sm); overflow: hidden; }
+.theme-mode-btn {
+  padding: 6px 18px; font-size: 13px; color: var(--muted);
+  background: var(--surface2); transition: all .15s;
+}
+.theme-mode-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
 /* Home person sub-tabs */
 .home-persons { display: flex; gap: 6px; flex-wrap: wrap; }
 .home-person-tab {
@@ -1515,6 +1526,35 @@ option.primary-person::before { content: '★ '; }
             </div>
             <button class="btn btn-primary btn-sm" id="fullscreen-btn" onclick="toggleLiveFullscreen()">⛶ Enter Fullscreen</button>
           </div>
+
+          <div class="card" style="margin-top:16px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:16px">Appearance</div>
+
+            <div class="settings-row" style="align-items:center">
+              <div class="settings-label">Mode</div>
+              <div class="theme-toggle">
+                <button class="theme-mode-btn" id="mode-dark" onclick="setThemeMode('dark')">Dark</button>
+                <button class="theme-mode-btn" id="mode-light" onclick="setThemeMode('light')">Light</button>
+              </div>
+            </div>
+
+            <div class="settings-row" style="align-items:center;margin-top:14px">
+              <div class="settings-label">Background</div>
+              <input type="color" class="color-input" id="color-bg" onchange="onColorChange('bg', this.value)"/>
+            </div>
+            <div class="settings-row" style="align-items:center">
+              <div class="settings-label">Surface</div>
+              <input type="color" class="color-input" id="color-surface" onchange="onColorChange('surface', this.value)"/>
+            </div>
+            <div class="settings-row" style="align-items:center">
+              <div class="settings-label">Accent</div>
+              <input type="color" class="color-input" id="color-accent" onchange="onColorChange('accent', this.value)"/>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:16px">
+              <button class="btn btn-ghost btn-sm" onclick="resetTheme()">Reset to default</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2579,6 +2619,104 @@ function onFullscreenChange() {
 }
 document.addEventListener('fullscreenchange', onFullscreenChange);
 document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+// ═══════════════════════════════════════════════════════════════════
+//  THEME — light/dark mode + custom colours
+// ═══════════════════════════════════════════════════════════════════
+// Base palettes for each mode. Custom colour overrides layer on top.
+const THEME_PRESETS = {
+  dark: {
+    bg: '#0A0E17', surface: '#111827', surface2: '#1a2235',
+    border: '#1E293B', border2: '#263347',
+    text: '#F8FAFC', muted: '#94A3B8', muted2: '#64748B',
+    accent: '#38BDF8',
+  },
+  light: {
+    bg: '#F1F5F9', surface: '#FFFFFF', surface2: '#F8FAFC',
+    border: '#E2E8F0', border2: '#CBD5E1',
+    text: '#0F172A', muted: '#475569', muted2: '#94A3B8',
+    accent: '#0284C7',
+  },
+};
+
+let themeState = { mode: 'dark', overrides: {} };
+
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? `${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)}` : '56,189,248';
+}
+
+function applyTheme() {
+  const preset = THEME_PRESETS[themeState.mode] || THEME_PRESETS.dark;
+  // Merge preset with user overrides
+  const colors = { ...preset, ...themeState.overrides };
+  const root = document.documentElement;
+  root.style.setProperty('--bg', colors.bg);
+  root.style.setProperty('--surface', colors.surface);
+  root.style.setProperty('--surface2', colors.surface2);
+  root.style.setProperty('--border', colors.border);
+  root.style.setProperty('--border2', colors.border2);
+  root.style.setProperty('--text', colors.text);
+  root.style.setProperty('--muted', colors.muted);
+  root.style.setProperty('--muted2', colors.muted2);
+  root.style.setProperty('--accent', colors.accent);
+  root.style.setProperty('--accent2', colors.accent);
+  root.style.setProperty('--accent-glow', `rgba(${hexToRgb(colors.accent)},.18)`);
+
+  // Sync the settings controls
+  const bgEl = document.getElementById('color-bg');
+  const surfEl = document.getElementById('color-surface');
+  const accEl = document.getElementById('color-accent');
+  if (bgEl) bgEl.value = colors.bg;
+  if (surfEl) surfEl.value = colors.surface;
+  if (accEl) accEl.value = colors.accent;
+  const md = document.getElementById('mode-dark');
+  const ml = document.getElementById('mode-light');
+  if (md) md.classList.toggle('active', themeState.mode === 'dark');
+  if (ml) ml.classList.toggle('active', themeState.mode === 'light');
+}
+
+function setThemeMode(mode) {
+  themeState.mode = mode;
+  // Clearing overrides when switching mode gives a clean preset;
+  // keep accent override if user set one
+  const keepAccent = themeState.overrides.accent;
+  themeState.overrides = {};
+  if (keepAccent) themeState.overrides.accent = keepAccent;
+  saveTheme();
+  applyTheme();
+}
+
+function onColorChange(key, value) {
+  // 'surface' override also adjusts surface2 and border for cohesion
+  if (key === 'surface') {
+    themeState.overrides.surface = value;
+    themeState.overrides.surface2 = value;
+  } else {
+    themeState.overrides[key] = value;
+  }
+  saveTheme();
+  applyTheme();
+}
+
+function resetTheme() {
+  themeState.overrides = {};
+  saveTheme();
+  applyTheme();
+  toast('Theme reset to default.', 'success');
+}
+
+function saveTheme() {
+  localStorage.setItem('theme', JSON.stringify(themeState));
+}
+
+function loadTheme() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('theme'));
+    if (saved && saved.mode) themeState = saved;
+  } catch (e) { /* default */ }
+  applyTheme();
+}
 
 // ── Widget data builders (instance-scoped) ─────────────────────────
 
@@ -5522,6 +5660,9 @@ document.addEventListener('click', (e) => {
     sfClearSelection();
   }
 });
+
+// Apply saved theme on page load
+loadTheme();
 </script>
 
 </body>
