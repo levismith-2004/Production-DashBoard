@@ -17,12 +17,14 @@ const GITHUB_PATH   = 'inventory.json';
 const ANNOUNCEMENTS_PATH = 'announcements.json';
 const PATCH_PATH = 'patch.json';
 const SIGNALFLOW_PATH = 'signalflow.json';
+const HOMELAYOUT_PATH = 'homelayout.json';
 
 // Local file fallback (used if GitHub env vars not set)
 const INVENTORY_FILE = path.join(__dirname, 'inventory.json');
 const ANNOUNCEMENTS_FILE = path.join(__dirname, 'announcements.json');
 const PATCH_FILE = path.join(__dirname, 'patch.json');
 const SIGNALFLOW_FILE = path.join(__dirname, 'signalflow.json');
+const HOMELAYOUT_FILE = path.join(__dirname, 'homelayout.json');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -402,6 +404,67 @@ async function signalFlowSave(data) {
   }
 }
 
+// ── Home layout CRUD ────────────────────────────────────────────────────────
+
+async function homeLayoutRead() {
+  if (githubEnabled()) {
+    try {
+      const result = await httpsRequest({
+        hostname: 'api.github.com',
+        path: `/repos/${GITHUB_REPO}/contents/${HOMELAYOUT_PATH}?ref=${GITHUB_BRANCH}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'production-dashboard',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
+      if (result.status === 404) return [];
+      const data = JSON.parse(result.body);
+      return JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+    } catch (e) { return []; }
+  }
+  try {
+    if (!fs.existsSync(HOMELAYOUT_FILE)) return [];
+    return JSON.parse(fs.readFileSync(HOMELAYOUT_FILE, 'utf8'));
+  } catch (e) { return []; }
+}
+
+async function homeLayoutSave(data) {
+  if (githubEnabled()) {
+    const result = await httpsRequest({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${HOMELAYOUT_PATH}?ref=${GITHUB_BRANCH}`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'production-dashboard',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+    const sha = result.status === 404 ? null : JSON.parse(result.body).sha;
+    const content = Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
+    const body = { message: 'Update home layout', content, branch: GITHUB_BRANCH };
+    if (sha) body.sha = sha;
+    await httpsRequest({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${HOMELAYOUT_PATH}`,
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'production-dashboard',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    }, JSON.stringify(body));
+  } else {
+    fs.writeFileSync(HOMELAYOUT_FILE, JSON.stringify(data, null, 2), 'utf8');
+  }
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -557,6 +620,28 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.warn('DELETE /inventory/delete error:', e);
       return jsonResponse(res, e.message === 'Not found' ? 404 : 500, { error: e.message });
+    }
+  }
+
+  // ── GET /homelayout ─────────────────────────────────────────────────────
+  if (pathname === '/homelayout' && method === 'GET') {
+    try {
+      return jsonResponse(res, 200, await homeLayoutRead());
+    } catch (e) {
+      console.warn('GET /homelayout error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── POST /homelayout/save ───────────────────────────────────────────────
+  if (pathname === '/homelayout/save' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      await homeLayoutSave(JSON.parse(body));
+      return jsonResponse(res, 200, { ok: true });
+    } catch (e) {
+      console.warn('POST /homelayout/save error:', e);
+      return jsonResponse(res, 500, { error: e.message });
     }
   }
 
