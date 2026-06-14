@@ -223,6 +223,17 @@ a { color: var(--accent); text-decoration: none; }
   align-items: center; justify-content: center;
 }
 .grid-stack.editing .widget-remove-btn { display: flex; }
+/* Section heading widget — transparent, just a label */
+.grid-stack-item-content.section-card {
+  background: transparent; border: none; box-shadow: none;
+  padding: 4px 2px; align-items: flex-end;
+}
+.grid-stack.editing .grid-stack-item-content.section-card {
+  border: 1px dashed var(--border2); background: var(--surface);
+}
+.w-section-title[contenteditable="true"] {
+  border-bottom: 1px dashed var(--accent); cursor: text;
+}
 /* Quick stats widget */
 .qstat-row { display: flex; justify-content: space-between; align-items: center;
   padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
@@ -237,13 +248,13 @@ a { color: var(--accent); text-decoration: none; }
 .conf-meta { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .pos-dot.pos-sound { background: #38BDF8; } .pos-dot.pos-media { background: #A78BFA; }
 .pos-dot.pos-lighting { background: #FBBF24; } .pos-dot.pos-runner { background: #4ADE80; }
-#clock-display {
+.w-clock-display, #clock-display {
   font-family: var(--mono); font-size: 84px; font-weight: 600;
   color: var(--accent); letter-spacing: -3px; line-height: 1;
   margin-bottom: 6px;
 }
-#clock-display .secs { font-size: 48px; color: var(--muted); }
-#clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
+.w-clock-display .secs, #clock-display .secs { font-size: 48px; color: var(--muted); }
+.w-clock-date, #clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
 .mini-cal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; font-size: 13px; font-weight: 600;
@@ -816,8 +827,8 @@ option.primary-person::before { content: '★ '; }
   .mob-inv-card-actions .btn { flex: 1; justify-content: center; padding: 9px; font-size: 13px; }
 
   /* ── Clock bigger and bolder on mobile ── */
-  #clock-display { font-size: 52px; }
-  #clock-display .secs { font-size: 32px; }
+  .w-clock-display, #clock-display { font-size: 52px; }
+  .w-clock-display .secs, #clock-display .secs { font-size: 32px; }
 
   /* ── Week service rows stack ── */
   .week-service-row { flex-direction: column; gap: 6px; }
@@ -1098,142 +1109,121 @@ option.primary-person::before { content: '★ '; }
           <button class="btn btn-ghost btn-sm" id="add-widget-btn" onclick="openWidgetMenu()">+ Add Widget</button>
           <button class="btn btn-ghost btn-sm" id="layout-edit-btn" onclick="toggleLayoutEdit()">✏️ Edit Layout</button>
         </div>
-        <div class="grid-stack" id="home-grid">
-
-          <!-- Announcements -->
-          <div class="grid-stack-item" gs-x="0" gs-y="0" gs-w="8" gs-h="2" gs-id="announcements">
-            <div class="grid-stack-item-content card" id="announcements-widget">
-              <div class="section-header" style="margin-bottom:12px">
-                <div>
-                  <div class="section-title">Flags</div>
-                  <div class="section-sub">Pinned messages for the production team</div>
-                </div>
-                <div style="display:flex;gap:6px">
-                  <button class="btn btn-ghost btn-sm" onclick="loadAnnouncements()">↺</button>
-                  <button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Post</button>
-                </div>
-              </div>
-              <div id="announcements-list"><div class="ann-empty">No announcements. Click Post to add one.</div></div>
-            </div>
-          </div>
-
-          <!-- Matrix shortcut -->
-          <div class="grid-stack-item" gs-x="8" gs-y="0" gs-w="4" gs-h="2" gs-id="matrix">
-            <div class="grid-stack-item-content card" id="matrix-widget" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px">
-              <div>
-                <div class="section-sub" style="margin-bottom:4px;font-size:14px">ROSTER MATRIX</div>
-                <div style="font-size:14px;color:var(--muted)">Manage production team rosters</div>
-              </div>
-              <button class="btn btn-primary" onclick="switchTab('matrix')">Open →</button>
-            </div>
-          </div>
-
-          <!-- Clock -->
-          <div class="grid-stack-item" gs-x="0" gs-y="2" gs-w="4" gs-h="4" gs-id="clock">
-            <div class="grid-stack-item-content card" id="clock-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
-              <div id="clock-display">
-                <span id="clock-hm">00:00</span><span class="secs">:<span id="clock-s">00</span></span>
-              </div>
-              <div id="clock-date">—</div>
-            </div>
-          </div>
-
-          <!-- Run Sheet -->
-          <div class="grid-stack-item" gs-x="0" gs-y="6" gs-w="4" gs-h="3" gs-id="runsheet">
-            <div class="grid-stack-item-content card" id="runsheet-widget" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px">
-              <div>
-                <div class="section-sub" style="margin-bottom:4px;font-size:14px">RUN SHEET</div>
-                <div style="font-size:14px;color:var(--muted)">View order of service</div>
-              </div>
-              <button class="btn btn-primary" onclick="switchTab('runsheet')">Open →</button>
-            </div>
-          </div>
-
-          <!-- Mini calendar -->
-          <div class="grid-stack-item" gs-x="4" gs-y="2" gs-w="4" gs-h="7" gs-id="cal">
-            <div class="grid-stack-item-content card" id="cal-widget">
-              <div class="section-sub" style="margin-bottom:10px">THIS MONTH</div>
-              <div id="mini-cal"></div>
-            </div>
-          </div>
-
-          <!-- This week -->
-          <div class="grid-stack-item" gs-x="8" gs-y="2" gs-w="4" gs-h="7" gs-id="week">
-            <div class="grid-stack-item-content card" id="week-widget">
-              <div class="section-sub" style="margin-bottom:10px">THIS WEEK'S SERVICES</div>
-              <div id="week-services"><div class="state-msg">Loading…</div></div>
-            </div>
-          </div>
-
-          <!-- Gaps -->
-          <div class="grid-stack-item" gs-x="0" gs-y="9" gs-w="12" gs-h="3" gs-id="gaps">
-            <div class="grid-stack-item-content card" id="gaps-widget">
-              <div class="section-header">
-                <div>
-                  <div class="section-title">Upcoming Roster Gaps</div>
-                  <div class="section-sub">Empty production positions in the next 4 weeks</div>
-                </div>
-              </div>
-              <div id="gaps-list"><div class="state-msg">Loading…</div></div>
-            </div>
-          </div>
-
-          <!-- Live Run Sheet (optional widget) -->
-          <div class="grid-stack-item" gs-x="0" gs-y="12" gs-w="6" gs-h="6" gs-id="liverunsheet" style="display:none">
-            <div class="grid-stack-item-content card" id="liverunsheet-widget">
-              <div class="section-header" style="margin-bottom:10px">
-                <div>
-                  <div class="section-title">Live Run Sheet</div>
-                  <div class="section-sub" id="liverunsheet-sub">Next service</div>
-                </div>
-                <button class="btn btn-ghost btn-sm" onclick="buildLiveRunSheet()">↺</button>
-              </div>
-              <div id="liverunsheet-content" style="overflow-y:auto;flex:1;min-height:0"><div class="state-msg">Loading…</div></div>
-            </div>
-          </div>
-
-          <!-- Next Service Countdown (optional widget) -->
-          <div class="grid-stack-item" gs-x="6" gs-y="12" gs-w="3" gs-h="3" gs-id="countdown" style="display:none">
-            <div class="grid-stack-item-content card" id="countdown-widget" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
-              <div class="section-sub" style="margin-bottom:8px">NEXT SERVICE</div>
-              <div id="countdown-value" style="font-family:var(--mono);font-size:32px;font-weight:600;color:var(--accent);line-height:1">—</div>
-              <div id="countdown-label" style="font-size:12px;color:var(--muted);margin-top:8px">—</div>
-            </div>
-          </div>
-
-          <!-- Quick Stats (optional widget) -->
-          <div class="grid-stack-item" gs-x="9" gs-y="12" gs-w="3" gs-h="3" gs-id="quickstats" style="display:none">
-            <div class="grid-stack-item-content card" id="quickstats-widget">
-              <div class="section-sub" style="margin-bottom:10px">QUICK STATS</div>
-              <div id="quickstats-content"><div class="state-msg">Loading…</div></div>
-            </div>
-          </div>
-
-          <!-- Notes / Scratchpad (optional widget) -->
-          <div class="grid-stack-item" gs-x="0" gs-y="18" gs-w="4" gs-h="4" gs-id="notes" style="display:none">
-            <div class="grid-stack-item-content card" id="notes-widget">
-              <div class="section-sub" style="margin-bottom:10px">NOTES</div>
-              <textarea id="notes-text" oninput="saveNotes()" placeholder="Quick notes (saved on this device)…"
-                style="flex:1;width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:10px;font-family:var(--font);font-size:13px;resize:none;outline:none;min-height:0"></textarea>
-            </div>
-          </div>
-
-          <!-- Confirmation Tracker (optional widget) -->
-          <div class="grid-stack-item" gs-x="4" gs-y="18" gs-w="4" gs-h="4" gs-id="confirmations" style="display:none">
-            <div class="grid-stack-item-content card" id="confirmations-widget">
-              <div class="section-header" style="margin-bottom:10px">
-                <div>
-                  <div class="section-title">Confirmations</div>
-                  <div class="section-sub">Pending responses this month</div>
-                </div>
-                <button class="btn btn-ghost btn-sm" onclick="buildConfirmations()">↺</button>
-              </div>
-              <div id="confirmations-content" style="overflow-y:auto;flex:1;min-height:0"><div class="state-msg">Loading…</div></div>
-            </div>
-          </div>
-
-        </div>
+        <div class="grid-stack" id="home-grid"></div>
       </div>
+
+      <!-- ── Widget templates (cloned into the grid) ──────────────── -->
+      <template id="tpl-announcements">
+        <div class="section-header" style="margin-bottom:12px">
+          <div>
+            <div class="section-title">Flags</div>
+            <div class="section-sub">Pinned messages for the production team</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" data-act="refresh">↺</button>
+            <button class="btn btn-primary btn-sm" onclick="openAnnouncementModal()">+ Post</button>
+          </div>
+        </div>
+        <div class="w-announcements-list"><div class="ann-empty">No announcements. Click Post to add one.</div></div>
+      </template>
+
+      <template id="tpl-matrix">
+        <div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;height:100%">
+          <div>
+            <div class="section-sub" style="margin-bottom:4px;font-size:14px">ROSTER MATRIX</div>
+            <div style="font-size:14px;color:var(--muted)">Manage production team rosters</div>
+          </div>
+          <button class="btn btn-primary" onclick="switchTab('matrix')">Open →</button>
+        </div>
+      </template>
+
+      <template id="tpl-clock">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%">
+          <div class="w-clock-display clock-display-style">
+            <span class="w-clock-hm">00:00</span><span class="secs">:<span class="w-clock-s">00</span></span>
+          </div>
+          <div class="w-clock-date clock-date-style">—</div>
+        </div>
+      </template>
+
+      <template id="tpl-runsheet">
+        <div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;height:100%">
+          <div>
+            <div class="section-sub" style="margin-bottom:4px;font-size:14px">RUN SHEET</div>
+            <div style="font-size:14px;color:var(--muted)">View order of service</div>
+          </div>
+          <button class="btn btn-primary" onclick="switchTab('runsheet')">Open →</button>
+        </div>
+      </template>
+
+      <template id="tpl-cal">
+        <div class="section-sub" style="margin-bottom:10px">THIS MONTH</div>
+        <div class="w-mini-cal" style="flex:1;min-height:0;overflow-y:auto"></div>
+      </template>
+
+      <template id="tpl-week">
+        <div class="section-sub" style="margin-bottom:10px">THIS WEEK'S SERVICES</div>
+        <div class="w-week-services" style="flex:1;min-height:0;overflow-y:auto"><div class="state-msg">Loading…</div></div>
+      </template>
+
+      <template id="tpl-gaps">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Upcoming Roster Gaps</div>
+            <div class="section-sub">Empty production positions in the next 4 weeks</div>
+          </div>
+        </div>
+        <div class="w-gaps-list" style="flex:1;min-height:0;overflow-y:auto"><div class="state-msg">Loading…</div></div>
+      </template>
+
+      <template id="tpl-liverunsheet">
+        <div class="section-header" style="margin-bottom:10px">
+          <div>
+            <div class="section-title">Live Run Sheet</div>
+            <div class="section-sub w-lrs-sub">Next service</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" data-act="refresh">↺</button>
+        </div>
+        <div class="w-lrs-content" style="overflow-y:auto;flex:1;min-height:0"><div class="state-msg">Loading…</div></div>
+      </template>
+
+      <template id="tpl-countdown">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%">
+          <div class="section-sub" style="margin-bottom:8px">NEXT SERVICE</div>
+          <div class="w-countdown-value" style="font-family:var(--mono);font-size:32px;font-weight:600;color:var(--accent);line-height:1">—</div>
+          <div class="w-countdown-label" style="font-size:12px;color:var(--muted);margin-top:8px">—</div>
+        </div>
+      </template>
+
+      <template id="tpl-quickstats">
+        <div class="section-sub" style="margin-bottom:10px">QUICK STATS</div>
+        <div class="w-quickstats-content" style="flex:1;min-height:0;overflow-y:auto"><div class="state-msg">Loading…</div></div>
+      </template>
+
+      <template id="tpl-notes">
+        <div class="section-sub" style="margin-bottom:10px">NOTES</div>
+        <textarea class="w-notes-text" data-act="notes" placeholder="Quick notes (saved on this device)…"
+          style="flex:1;width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:10px;font-family:var(--font);font-size:13px;resize:none;outline:none;min-height:0"></textarea>
+      </template>
+
+      <template id="tpl-confirmations">
+        <div class="section-header" style="margin-bottom:10px">
+          <div>
+            <div class="section-title">Confirmations</div>
+            <div class="section-sub">Pending responses this month</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" data-act="refresh">↺</button>
+        </div>
+        <div class="w-confirmations-content" style="overflow-y:auto;flex:1;min-height:0"><div class="state-msg">Loading…</div></div>
+      </template>
+
+      <template id="tpl-section">
+        <div style="display:flex;align-items:center;height:100%">
+          <div class="w-section-title" data-act="section-title"
+            style="font-size:18px;font-weight:600;color:var(--text);width:100%;outline:none"
+            contenteditable="false">Section</div>
+        </div>
+      </template>
 
       <!-- ── Matrix ─────────────────────────────────────────── -->
       <div class="tab-panel" id="panel-matrix">
@@ -1799,7 +1789,6 @@ async function doLogin() {
       document.getElementById('app').classList.add('visible');
       startClock();
       initHomeGrid();
-      buildMiniCal();
       loadPrimaryPeople();
       initSettings();
       if (pcoAppId && pcoSecret) {
@@ -1825,12 +1814,12 @@ function startClock() {
     const hh = String(now.getHours()).padStart(2,'0');
     const mm = String(now.getMinutes()).padStart(2,'0');
     const ss = String(now.getSeconds()).padStart(2,'0');
-    document.getElementById('clock-hm').textContent = `${hh}:${mm}`;
-    document.getElementById('clock-s').textContent = ss;
     const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    document.getElementById('clock-date').textContent =
-      `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    const dateStr = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    document.querySelectorAll('.w-clock-hm').forEach(el => el.textContent = `${hh}:${mm}`);
+    document.querySelectorAll('.w-clock-s').forEach(el => el.textContent = ss);
+    document.querySelectorAll('.w-clock-date').forEach(el => el.textContent = dateStr);
   };
   tick();
   clockInterval = setInterval(tick, 1000);
@@ -1839,7 +1828,8 @@ function startClock() {
 // ═══════════════════════════════════════════════════════════════════
 //  MINI CALENDAR
 // ═══════════════════════════════════════════════════════════════════
-function buildMiniCal() {
+function renderMiniCalInto(container) {
+  if (!container) return;
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth();
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1856,13 +1846,21 @@ function buildMiniCal() {
     const isToday = d === now.getDate();
     const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const hasService = allCalEvents.some(e => e.date === dateStr);
-    html += `<div class="cal-day${isToday?' today':''}${hasService?' has-service':''}" onclick="showMiniCalDay('${dateStr}')">${d}</div>`;
+    html += `<div class="cal-day${isToday?' today':''}${hasService?' has-service':''}" onclick="showMiniCalDay(this,'${dateStr}')">${d}</div>`;
   }
   html += '</div>';
-  document.getElementById('mini-cal').innerHTML = html;
+  container.innerHTML = html;
 }
 
-function showMiniCalDay(dateStr) {
+// Rebuild all calendar widget instances
+function buildMiniCal() {
+  document.querySelectorAll('.w-mini-cal').forEach(renderMiniCalInto);
+}
+
+function showMiniCalDay(dayEl, dateStr) {
+  // Find which calendar widget this day belongs to
+  const container = dayEl.closest('.w-mini-cal');
+  if (!container) return;
   const d = new Date(dateStr + 'T12:00:00');
   const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1882,9 +1880,9 @@ function showMiniCalDay(dateStr) {
     ).join('');
   }
 
-  document.getElementById('mini-cal').innerHTML = `
+  container.innerHTML = `
     <div class="mini-cal-header" style="gap:8px">
-      <button class="btn btn-ghost btn-sm" onclick="buildMiniCal()" style="padding:2px 8px">← Back</button>
+      <button class="btn btn-ghost btn-sm" onclick="renderMiniCalInto(this.closest('.w-mini-cal'))" style="padding:2px 8px">← Back</button>
       <span style="font-size:13px">${heading}</span>
     </div>
     <div class="cal-day-overview">${body}</div>`;
@@ -1919,7 +1917,12 @@ async function connectPCO() {
       buildFullCalendar();
       if (currentTab === 'runsheet') buildRunsheetSidebar();
       populateMobServicePicker();
-      buildHomeRunsheetDropdown();
+      // Rebuild calendar-dependent home widget instances now data is ready
+      Object.entries(widgetInstances).forEach(([id, info]) => {
+        if (['liverunsheet','countdown','confirmations','quickstats'].includes(info.type)) {
+          buildWidget(id, info.type);
+        }
+      });
     }).catch(e => console.warn('Background plan load error:', e));
 
   } catch (e) {
@@ -2026,282 +2029,9 @@ async function loadAllPlansForCalendar() {
 // ═══════════════════════════════════════════════════════════════════
 let homeGrid = null;
 let layoutEditing = false;
+let widgetCounter = 0;
 
-function initHomeGrid() {
-  if (homeGrid || typeof GridStack === 'undefined') return;
-  homeGrid = GridStack.init({
-    column: 12,
-    cellHeight: 64,
-    margin: 8,
-    marginUnit: 'px',
-    disableDrag: true,
-    disableResize: true,
-    float: true,
-    columnOpts: {
-      breakpointForWindow: true,
-      breakpoints: [{ w: 768, c: 1 }],  // 1 column when window ≤ 768px
-    },
-  }, '#home-grid');
-
-  // Optional widgets start off the grid (added via menu)
-  const OPTIONAL = ['liverunsheet', 'countdown', 'quickstats', 'notes', 'confirmations'];
-  OPTIONAL.forEach(id => {
-    const el = document.querySelector(`.grid-stack-item[gs-id="${id}"]`);
-    if (el) { homeGrid.removeWidget(el, false); el.style.display = 'none'; }
-  });
-
-  loadHomeLayout();
-}
-
-// Which layout key to use based on screen width
-function layoutKey() {
-  return window.innerWidth <= 768 ? 'mobile' : 'desktop';
-}
-
-function toggleLayoutEdit() {
-  if (!homeGrid) return;
-  layoutEditing = !layoutEditing;
-  homeGrid.enableMove(layoutEditing);
-  homeGrid.enableResize(layoutEditing);
-  document.getElementById('home-grid').classList.toggle('editing', layoutEditing);
-  const btn = document.getElementById('layout-edit-btn');
-  if (layoutEditing) {
-    btn.textContent = '✓ Done';
-    btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
-    // Inject remove buttons into each visible widget
-    document.querySelectorAll('.grid-stack-item').forEach(el => {
-      if (el.style.display === 'none') return;
-      const id = el.getAttribute('gs-id');
-      const content = el.querySelector('.grid-stack-item-content');
-      if (content && !content.querySelector('.widget-remove-btn')) {
-        const rm = document.createElement('button');
-        rm.className = 'widget-remove-btn';
-        rm.textContent = '✕';
-        rm.title = 'Remove widget';
-        rm.onclick = (e) => { e.stopPropagation(); removeWidgetFromGrid(id); };
-        content.appendChild(rm);
-      }
-    });
-  } else {
-    btn.textContent = '✏️ Edit Layout';
-    btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost');
-    // Remove the remove-buttons
-    document.querySelectorAll('.widget-remove-btn').forEach(b => b.remove());
-    saveHomeLayout();
-  }
-}
-
-async function saveHomeLayout() {
-  if (!homeGrid) return;
-  const layout = homeGrid.save(false);
-  try {
-    await fetch('/homelayout/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: layoutKey(), layout }),
-    });
-    toast('Layout saved for ' + layoutKey() + '.', 'success');
-  } catch (e) { console.warn('saveHomeLayout error:', e); }
-}
-
-async function loadHomeLayout() {
-  if (!homeGrid) return;
-  try {
-    const res = await fetch('/homelayout');
-    const data = await res.json();
-    const layout = data[layoutKey()];
-    if (Array.isArray(layout) && layout.length) {
-      homeGrid.batchUpdate();
-      // First hide widgets not in the saved layout, show those that are
-      const savedIds = new Set(layout.map(n => n.id));
-      document.querySelectorAll('.grid-stack-item').forEach(el => {
-        const id = el.getAttribute('gs-id');
-        if (savedIds.has(id)) {
-          el.style.display = '';
-        } else {
-          // Widget not in saved layout — remove from grid (available to add back)
-          homeGrid.removeWidget(el, false);
-          el.style.display = 'none';
-        }
-      });
-      layout.forEach(node => {
-        if (!node.id) return;
-        const el = document.querySelector(`.grid-stack-item[gs-id="${node.id}"]`);
-        if (el) {
-          el.style.display = '';
-          homeGrid.makeWidget(el);
-          homeGrid.update(el, { x: node.x, y: node.y, w: node.w, h: node.h });
-        }
-      });
-      homeGrid.commit();
-    }
-  } catch (e) { console.warn('loadHomeLayout error:', e); }
-}
-
-// Refresh all home data from server/PCO
-function refreshHome() {
-  loadAnnouncements();
-  loadHomeLayout();
-  if (calendarDataReady) {
-    buildWeekServices();
-    buildGapsList();
-    buildMiniCal();
-  }
-  toast('Home refreshed.', 'success');
-}
-
-// ── New optional widget builders ───────────────────────────────────
-
-// Find the next upcoming service (today or future, soonest first)
-function getNextService() {
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = allCalEvents
-    .filter(e => e.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date));
-  return upcoming[0] || null;
-}
-
-// Live Run Sheet — shows next service's order of service
-function buildLiveRunSheet() {
-  const sub = document.getElementById('liverunsheet-sub');
-  const content = document.getElementById('liverunsheet-content');
-  if (!content) return;
-
-  if (!calendarDataReady) {
-    content.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Waiting for service data…</div>';
-    // Retry shortly until calendar data is ready
-    setTimeout(buildLiveRunSheet, 1500);
-    return;
-  }
-
-  const next = getNextService();
-  if (!next) {
-    if (sub) sub.textContent = 'No upcoming service';
-    content.innerHTML = '<div class="state-msg">No upcoming services found.</div>';
-    return;
-  }
-  if (!next.plan || !next.plan.id) {
-    content.innerHTML = '<div class="state-msg">Service data incomplete.</div>';
-    return;
-  }
-  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const d = new Date(next.date + 'T12:00:00');
-  if (sub) sub.textContent = `${next.name} · ${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
-  loadRunSheetInto(next.stId, next.plan.id, content);
-}
-
-// Next Service Countdown
-let countdownInterval = null;
-function buildCountdown() {
-  const valEl = document.getElementById('countdown-value');
-  const lblEl = document.getElementById('countdown-label');
-  if (!valEl) return;
-  const next = getNextService();
-  if (!next) {
-    valEl.textContent = '—';
-    if (lblEl) lblEl.textContent = 'No upcoming service';
-    return;
-  }
-  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const d = new Date(next.date + 'T12:00:00');
-  if (lblEl) lblEl.textContent = `${next.name} · ${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
-
-  function tick() {
-    const target = new Date(next.date + 'T00:00:00');
-    const now = new Date();
-    const diffMs = target - now;
-    if (diffMs <= 0) {
-      valEl.textContent = 'Today';
-      return;
-    }
-    const days = Math.floor(diffMs / 86400000);
-    const hours = Math.floor((diffMs % 86400000) / 3600000);
-    if (days > 0) {
-      valEl.textContent = `${days}d ${hours}h`;
-    } else {
-      const mins = Math.floor((diffMs % 3600000) / 60000);
-      valEl.textContent = `${hours}h ${mins}m`;
-    }
-  }
-  tick();
-  if (countdownInterval) clearInterval(countdownInterval);
-  countdownInterval = setInterval(tick, 60000);
-}
-
-// Quick Stats
-function buildQuickStats() {
-  const content = document.getElementById('quickstats-content');
-  if (!content) return;
-  const now = new Date();
-  const thisMonth = now.toISOString().slice(0, 7);
-  const servicesThisMonth = allCalEvents.filter(e => e.date.slice(0, 7) === thisMonth).length;
-  const teamSize = (typeof teamPeople !== 'undefined' && teamPeople) ? teamPeople.length : 0;
-  const positions = (typeof teamPositions !== 'undefined' && teamPositions) ? teamPositions.length : 0;
-
-  content.innerHTML = `
-    <div class="qstat-row"><span class="qstat-label">Team members</span><span class="qstat-val">${teamSize}</span></div>
-    <div class="qstat-row"><span class="qstat-label">Positions</span><span class="qstat-val">${positions}</span></div>
-    <div class="qstat-row"><span class="qstat-label">Services this month</span><span class="qstat-val">${servicesThisMonth}</span></div>
-  `;
-}
-
-// Notes (localStorage)
-function loadNotes() {
-  const ta = document.getElementById('notes-text');
-  if (ta) ta.value = localStorage.getItem('home-notes') || '';
-}
-function saveNotes() {
-  const ta = document.getElementById('notes-text');
-  if (ta) localStorage.setItem('home-notes', ta.value);
-}
-
-// Confirmation tracker — pending (U) responses in upcoming Sunday plans
-async function buildConfirmations() {
-  const content = document.getElementById('confirmations-content');
-  if (!content) return;
-  content.innerHTML = '<div class="state-msg"><div class="spinner"></div></div>';
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = allCalEvents
-    .filter(e => e.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 6);
-
-  const pending = [];
-  for (const ev of upcoming) {
-    try {
-      const data = await pcoGet(`/services/v2/service_types/${ev.stId}/plans/${ev.plan.id}/team_members?per_page=100`);
-      (data.data || []).forEach(m => {
-        if (m.attributes.status === 'U' &&
-            teamPeople.some(tp => tp.id === m.relationships.person.data.id)) {
-          pending.push({
-            name: m.attributes.name,
-            pos: m.attributes.team_position_name,
-            date: ev.date,
-          });
-        }
-      });
-    } catch (e) { /* skip */ }
-  }
-
-  if (!pending.length) {
-    content.innerHTML = '<div style="color:var(--green);font-size:13px;padding:8px 0">All responses confirmed 🎉</div>';
-    return;
-  }
-  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  content.innerHTML = pending.map(p => {
-    const d = new Date(p.date + 'T12:00:00');
-    const pc = posClass(p.pos);
-    return `<div class="conf-row">
-      <span class="pos-dot ${pc}"></span>
-      <span class="conf-name">${esc(p.name)}</span>
-      <span class="conf-meta">${esc(p.pos)} · ${DAYS[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}</span>
-    </div>`;
-  }).join('');
-}
-
-// ── Widget menu (add hidden widgets back to the grid) ──────────────
+// Widget type metadata
 const WIDGET_LABELS = {
   announcements: 'Flags',
   matrix: 'Roster Matrix',
@@ -2315,19 +2045,234 @@ const WIDGET_LABELS = {
   quickstats: 'Quick Stats',
   notes: 'Notes',
   confirmations: 'Confirmations',
+  section: 'Section Heading',
 };
+// Default sizes per type {w, h}
+const WIDGET_SIZES = {
+  announcements: { w: 8, h: 2 }, matrix: { w: 4, h: 2 },
+  clock: { w: 4, h: 4 }, runsheet: { w: 4, h: 2 },
+  cal: { w: 4, h: 7 }, week: { w: 4, h: 7 }, gaps: { w: 12, h: 3 },
+  liverunsheet: { w: 6, h: 6 }, countdown: { w: 3, h: 3 },
+  quickstats: { w: 3, h: 3 }, notes: { w: 4, h: 4 },
+  confirmations: { w: 4, h: 4 }, section: { w: 12, h: 1 },
+};
+// Default starting layout (instance id, type, position)
+const DEFAULT_LAYOUT = [
+  { id: 'w-announcements', type: 'announcements', x: 0, y: 0, w: 8, h: 2 },
+  { id: 'w-matrix', type: 'matrix', x: 8, y: 0, w: 4, h: 2 },
+  { id: 'w-clock', type: 'clock', x: 0, y: 2, w: 4, h: 4 },
+  { id: 'w-runsheet', type: 'runsheet', x: 0, y: 6, w: 4, h: 2 },
+  { id: 'w-cal', type: 'cal', x: 4, y: 2, w: 4, h: 7 },
+  { id: 'w-week', type: 'week', x: 8, y: 2, w: 4, h: 7 },
+  { id: 'w-gaps', type: 'gaps', x: 0, y: 9, w: 12, h: 3 },
+];
 
+// Track each instance's type + any extra data (e.g. section title)
+let widgetInstances = {}; // { instanceId: { type, title? } }
+
+function initHomeGrid() {
+  if (homeGrid || typeof GridStack === 'undefined') return;
+  homeGrid = GridStack.init({
+    column: 12,
+    cellHeight: 64,
+    margin: 8,
+    marginUnit: 'px',
+    disableDrag: true,
+    disableResize: true,
+    float: true,
+    columnOpts: {
+      breakpointForWindow: true,
+      breakpoints: [{ w: 768, c: 1 }],
+    },
+  }, '#home-grid');
+  loadHomeLayout();
+}
+
+function layoutKey() {
+  return window.innerWidth <= 768 ? 'mobile' : 'desktop';
+}
+
+// Create a widget instance element from a template and add to grid
+function createWidgetEl(instanceId, type) {
+  const tpl = document.getElementById('tpl-' + type);
+  if (!tpl) return null;
+
+  const item = document.createElement('div');
+  item.className = 'grid-stack-item';
+  item.setAttribute('gs-id', instanceId);
+  item.dataset.widgetType = type;
+
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'grid-stack-item-content card';
+  if (type === 'section') contentDiv.classList.add('section-card');
+  contentDiv.appendChild(tpl.content.cloneNode(true));
+  item.appendChild(contentDiv);
+
+  // Wire up per-instance action handlers
+  contentDiv.querySelectorAll('[data-act]').forEach(el => {
+    const act = el.dataset.act;
+    if (act === 'refresh') {
+      el.onclick = () => buildWidget(instanceId, type);
+    } else if (act === 'notes') {
+      el.oninput = () => localStorage.setItem('notes-' + instanceId, el.value);
+    } else if (act === 'section-title') {
+      el.onblur = () => {
+        if (widgetInstances[instanceId]) widgetInstances[instanceId].title = el.textContent;
+        saveHomeLayout();
+      };
+      el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } };
+    }
+  });
+
+  return item;
+}
+
+// Build/refresh the data inside a widget instance
+function buildWidget(instanceId, type) {
+  const item = document.querySelector(`.grid-stack-item[gs-id="${instanceId}"]`);
+  if (!item) return;
+  const root = item.querySelector('.grid-stack-item-content');
+  if (!root) return;
+
+  switch (type) {
+    case 'announcements':
+      if (!announcements.length) loadAnnouncements();
+      else renderAnnouncementsInto(root.querySelector('.w-announcements-list'));
+      break;
+    case 'cal': renderMiniCalInto(root.querySelector('.w-mini-cal')); break;
+    case 'week': renderWeekInto(root.querySelector('.w-week-services')); break;
+    case 'gaps': renderGapsInto(root.querySelector('.w-gaps-list')); break;
+    case 'clock': /* clock updates globally via startClock */ break;
+    case 'liverunsheet': buildLiveRunSheetInto(root); break;
+    case 'countdown': buildCountdownInto(root); break;
+    case 'quickstats': buildQuickStatsInto(root.querySelector('.w-quickstats-content')); break;
+    case 'notes': {
+      const ta = root.querySelector('.w-notes-text');
+      if (ta) ta.value = localStorage.getItem('notes-' + instanceId) || '';
+      break;
+    }
+    case 'confirmations': buildConfirmationsInto(root.querySelector('.w-confirmations-content')); break;
+    case 'section': {
+      const t = root.querySelector('.w-section-title');
+      if (t && widgetInstances[instanceId] && widgetInstances[instanceId].title) {
+        t.textContent = widgetInstances[instanceId].title;
+      }
+      break;
+    }
+  }
+}
+
+function toggleLayoutEdit() {
+  if (!homeGrid) return;
+  layoutEditing = !layoutEditing;
+  homeGrid.enableMove(layoutEditing);
+  homeGrid.enableResize(layoutEditing);
+  document.getElementById('home-grid').classList.toggle('editing', layoutEditing);
+  const btn = document.getElementById('layout-edit-btn');
+  if (layoutEditing) {
+    btn.textContent = '✓ Done';
+    btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+    document.querySelectorAll('.grid-stack-item').forEach(el => {
+      const id = el.getAttribute('gs-id');
+      const content = el.querySelector('.grid-stack-item-content');
+      if (content && !content.querySelector('.widget-remove-btn')) {
+        const rm = document.createElement('button');
+        rm.className = 'widget-remove-btn';
+        rm.textContent = '✕';
+        rm.title = 'Remove widget';
+        rm.onclick = (e) => { e.stopPropagation(); removeWidgetFromGrid(id); };
+        content.appendChild(rm);
+      }
+      // Make section titles editable in edit mode
+      const st = el.querySelector('.w-section-title');
+      if (st) st.setAttribute('contenteditable', 'true');
+    });
+  } else {
+    btn.textContent = '✏️ Edit Layout';
+    btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost');
+    document.querySelectorAll('.widget-remove-btn').forEach(b => b.remove());
+    document.querySelectorAll('.w-section-title').forEach(st => st.setAttribute('contenteditable', 'false'));
+    saveHomeLayout();
+  }
+}
+
+async function saveHomeLayout() {
+  if (!homeGrid) return;
+  // Build layout array with id, type, position, and any extra data
+  const nodes = homeGrid.engine.nodes;
+  const layout = nodes.map(n => {
+    const id = n.el.getAttribute('gs-id');
+    const type = n.el.dataset.widgetType;
+    const entry = { id, type, x: n.x, y: n.y, w: n.w, h: n.h };
+    if (type === 'section' && widgetInstances[id] && widgetInstances[id].title) {
+      entry.title = widgetInstances[id].title;
+    }
+    return entry;
+  });
+  try {
+    await fetch('/homelayout/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: layoutKey(), layout }),
+    });
+    toast('Layout saved for ' + layoutKey() + '.', 'success');
+  } catch (e) { console.warn('saveHomeLayout error:', e); }
+}
+
+async function loadHomeLayout() {
+  if (!homeGrid) return;
+  let layout = null;
+  try {
+    const res = await fetch('/homelayout');
+    const data = await res.json();
+    layout = data[layoutKey()];
+  } catch (e) { console.warn('loadHomeLayout error:', e); }
+
+  // Fall back to default layout if none saved
+  if (!Array.isArray(layout) || !layout.length) {
+    layout = DEFAULT_LAYOUT.map(w => ({ ...w }));
+  }
+
+  // Clear existing
+  homeGrid.removeAll(false);
+  document.getElementById('home-grid').innerHTML = '';
+  widgetInstances = {};
+  widgetCounter = 0;
+
+  homeGrid.batchUpdate();
+  layout.forEach(node => {
+    const type = node.type;
+    if (!type || !WIDGET_LABELS[type]) return;
+    const id = node.id || ('w-' + type + '-' + (++widgetCounter));
+    widgetInstances[id] = { type };
+    if (node.title) widgetInstances[id].title = node.title;
+    const el = createWidgetEl(id, type);
+    if (!el) return;
+    document.getElementById('home-grid').appendChild(el);
+    homeGrid.makeWidget(el);
+    homeGrid.update(el, { x: node.x, y: node.y, w: node.w, h: node.h });
+    // Track max counter to avoid id collisions
+    const m = /-(\d+)$/.exec(id);
+    if (m) widgetCounter = Math.max(widgetCounter, parseInt(m[1]));
+  });
+  homeGrid.commit();
+
+  // Build data for each instance
+  Object.entries(widgetInstances).forEach(([id, info]) => buildWidget(id, info.type));
+}
+
+// Refresh all home data
+function refreshHome() {
+  loadHomeLayout();
+  toast('Home refreshed.', 'success');
+}
+
+// ── Widget menu ────────────────────────────────────────────────────
 function openWidgetMenu() {
-  // Find widgets currently NOT on the grid
-  const onGrid = new Set(homeGrid.engine.nodes.map(n => n.el.getAttribute('gs-id')));
-  const available = Object.keys(WIDGET_LABELS).filter(id => !onGrid.has(id));
-
-  const listHtml = available.length
-    ? available.map(id =>
-        `<button class="widget-menu-item" onclick="addWidgetToGrid('${id}')">${esc(WIDGET_LABELS[id])}</button>`
-      ).join('')
-    : '<div style="color:var(--muted);font-size:13px;padding:12px">All widgets are already on your dashboard.</div>';
-
+  // Every widget type can be added (duplicates allowed)
+  const listHtml = Object.keys(WIDGET_LABELS).map(type =>
+    `<button class="widget-menu-item" onclick="addWidgetToGrid('${type}')">${esc(WIDGET_LABELS[type])}</button>`
+  ).join('');
   document.getElementById('widget-menu-list').innerHTML = listHtml;
   document.getElementById('widget-menu-modal').classList.remove('hidden');
 }
@@ -2336,48 +2281,132 @@ function closeWidgetMenu() {
   document.getElementById('widget-menu-modal').classList.add('hidden');
 }
 
-function addWidgetToGrid(id) {
-  const el = document.querySelector(`.grid-stack-item[gs-id="${id}"]`);
+function addWidgetToGrid(type) {
+  if (!homeGrid || !WIDGET_LABELS[type]) return;
+  const id = 'w-' + type + '-' + (++widgetCounter);
+  widgetInstances[id] = { type };
+  const el = createWidgetEl(id, type);
   if (!el) return;
-  el.style.display = '';
-  // Sensible default sizes per widget
-  const sizes = {
-    liverunsheet: { w: 6, h: 6 },
-    countdown: { w: 3, h: 3 },
-    quickstats: { w: 3, h: 3 },
-    notes: { w: 4, h: 4 },
-    confirmations: { w: 4, h: 4 },
-  };
-  const size = sizes[id] || { w: 4, h: 3 };
-  // Add at top-left; GridStack will find the first free spot
+  document.getElementById('home-grid').appendChild(el);
   homeGrid.makeWidget(el);
+  const size = WIDGET_SIZES[type] || { w: 4, h: 3 };
   homeGrid.update(el, { x: 0, y: 0, w: size.w, h: size.h, autoPosition: true });
   homeGrid.compact();
+  buildWidget(id, type);
   closeWidgetMenu();
   saveHomeLayout();
-  // Scroll back to top so the user sees the new widget
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  // Re-render any data the widget needs
-  if (id === 'week') buildWeekServices();
-  if (id === 'gaps') buildGapsList();
-  if (id === 'cal') buildMiniCal();
-  if (id === 'announcements') loadAnnouncements();
-  if (id === 'liverunsheet') buildLiveRunSheet();
-  if (id === 'countdown') buildCountdown();
-  if (id === 'quickstats') buildQuickStats();
-  if (id === 'notes') loadNotes();
-  if (id === 'confirmations') buildConfirmations();
-  toast(WIDGET_LABELS[id] + ' added.', 'success');
+  toast(WIDGET_LABELS[type] + ' added.', 'success');
 }
 
-// Remove a widget from the grid (X button in edit mode)
 function removeWidgetFromGrid(id) {
   const el = document.querySelector(`.grid-stack-item[gs-id="${id}"]`);
   if (!el) return;
-  homeGrid.removeWidget(el, false);
-  el.style.display = 'none';
+  const type = el.dataset.widgetType;
+  homeGrid.removeWidget(el, true);
+  delete widgetInstances[id];
   saveHomeLayout();
-  toast(WIDGET_LABELS[id] + ' removed.', 'success');
+  toast((WIDGET_LABELS[type] || 'Widget') + ' removed.', 'success');
+}
+
+// ── Widget data builders (instance-scoped) ─────────────────────────
+
+function getNextService() {
+  const today = new Date().toISOString().slice(0, 10);
+  return allCalEvents
+    .filter(e => e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0] || null;
+}
+
+function buildLiveRunSheetInto(root) {
+  const sub = root.querySelector('.w-lrs-sub');
+  const content = root.querySelector('.w-lrs-content');
+  if (!content) return;
+  if (!calendarDataReady) {
+    content.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Waiting for service data…</div>';
+    setTimeout(() => buildLiveRunSheetInto(root), 1500);
+    return;
+  }
+  const next = getNextService();
+  if (!next || !next.plan || !next.plan.id) {
+    if (sub) sub.textContent = 'No upcoming service';
+    content.innerHTML = '<div class="state-msg">No upcoming services found.</div>';
+    return;
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = new Date(next.date + 'T12:00:00');
+  if (sub) sub.textContent = `${next.name} · ${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  loadRunSheetInto(next.stId, next.plan.id, content);
+}
+
+let countdownIntervals = {};
+function buildCountdownInto(root) {
+  const valEl = root.querySelector('.w-countdown-value');
+  const lblEl = root.querySelector('.w-countdown-label');
+  if (!valEl) return;
+  const next = getNextService();
+  if (!next) {
+    valEl.textContent = '—';
+    if (lblEl) lblEl.textContent = 'No upcoming service';
+    return;
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = new Date(next.date + 'T12:00:00');
+  if (lblEl) lblEl.textContent = `${next.name} · ${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  function tick() {
+    const target = new Date(next.date + 'T00:00:00');
+    const diffMs = target - new Date();
+    if (diffMs <= 0) { valEl.textContent = 'Today'; return; }
+    const days = Math.floor(diffMs / 86400000);
+    const hours = Math.floor((diffMs % 86400000) / 3600000);
+    if (days > 0) valEl.textContent = `${days}d ${hours}h`;
+    else { const mins = Math.floor((diffMs % 3600000) / 60000); valEl.textContent = `${hours}h ${mins}m`; }
+  }
+  tick();
+  setInterval(tick, 60000);
+}
+
+function buildQuickStatsInto(content) {
+  if (!content) return;
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const servicesThisMonth = allCalEvents.filter(e => e.date.slice(0, 7) === thisMonth).length;
+  const teamSize = (typeof teamPeople !== 'undefined' && teamPeople) ? teamPeople.length : 0;
+  const positions = (typeof teamPositions !== 'undefined' && teamPositions) ? teamPositions.length : 0;
+  content.innerHTML = `
+    <div class="qstat-row"><span class="qstat-label">Team members</span><span class="qstat-val">${teamSize}</span></div>
+    <div class="qstat-row"><span class="qstat-label">Positions</span><span class="qstat-val">${positions}</span></div>
+    <div class="qstat-row"><span class="qstat-label">Services this month</span><span class="qstat-val">${servicesThisMonth}</span></div>`;
+}
+
+async function buildConfirmationsInto(content) {
+  if (!content) return;
+  content.innerHTML = '<div class="state-msg"><div class="spinner"></div></div>';
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = allCalEvents.filter(e => e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
+  const pending = [];
+  for (const ev of upcoming) {
+    try {
+      const data = await pcoGet(`/services/v2/service_types/${ev.stId}/plans/${ev.plan.id}/team_members?per_page=100`);
+      (data.data || []).forEach(m => {
+        if (m.attributes.status === 'U' && teamPeople.some(tp => tp.id === m.relationships.person.data.id)) {
+          pending.push({ name: m.attributes.name, pos: m.attributes.team_position_name, date: ev.date });
+        }
+      });
+    } catch (e) { /* skip */ }
+  }
+  if (!pending.length) {
+    content.innerHTML = '<div style="color:var(--green);font-size:13px;padding:8px 0">All responses confirmed.</div>';
+    return;
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  content.innerHTML = pending.map(p => {
+    const d = new Date(p.date + 'T12:00:00');
+    const pc = posClass(p.pos);
+    return `<div class="conf-row"><span class="pos-dot ${pc}"></span><span class="conf-name">${esc(p.name)}</span><span class="conf-meta">${esc(p.pos)} · ${DAYS[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}</span></div>`;
+  }).join('');
 }
 
 // Map position name to CSS class for colour stripe
@@ -2390,9 +2419,11 @@ function posClass(posName) {
   return '';
 }
 let weekServicesData = [];
+let weekActiveIdx = 0;
 
 async function buildWeekServices() {
-  const container = document.getElementById('week-services');
+  const containers = document.querySelectorAll('.w-week-services');
+  if (!containers.length) return;
   const now = new Date();
   const monday = new Date(now);
   monday.setDate(now.getDate() - now.getDay() + 1);
@@ -2406,11 +2437,10 @@ async function buildWeekServices() {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   if (!thisWeek.length) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No services this week.</div>';
+    containers.forEach(c => c.innerHTML = '<div style="color:var(--muted);font-size:13px">No services this week.</div>');
     return;
   }
 
-  // Load all services' members, keep only those with production team
   weekServicesData = [];
   for (const ev of thisWeek) {
     try {
@@ -2436,7 +2466,7 @@ async function buildWeekServices() {
   }
 
   if (!weekServicesData.length) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No services with production team this week.</div>';
+    containers.forEach(c => c.innerHTML = '<div style="color:var(--muted);font-size:13px">No services with production team this week.</div>');
     return;
   }
 
@@ -2444,10 +2474,10 @@ async function buildWeekServices() {
 }
 
 function renderWeekServices(activeIdx) {
-  const container = document.getElementById('week-services');
+  weekActiveIdx = activeIdx;
   const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  if (!weekServicesData.length) return;
 
-  // Tabs row — day name above the date
   const tabs = weekServicesData.map((s, i) => {
     const d = new Date(s.date + 'T12:00:00');
     const dayLabel = DOW[d.getDay()];
@@ -2458,7 +2488,6 @@ function renderWeekServices(activeIdx) {
     </button>`;
   }).join('');
 
-  // Active service positions
   const s = weekServicesData[activeIdx];
   const pillsHtml = teamPositions.map(pos => {
     const entries = s.posMap[pos.name] || [];
@@ -2472,34 +2501,35 @@ function renderWeekServices(activeIdx) {
     ).join('');
   }).join('');
 
-  container.innerHTML = `
+  const html = `
     <div class="week-tabs">${tabs}</div>
     <div class="week-service-name" style="margin-bottom:8px">${esc(s.name)}</div>
     <div class="week-positions">${pillsHtml}</div>`;
+  document.querySelectorAll('.w-week-services').forEach(c => c.innerHTML = html);
 }
 
 // ─── Gaps list ────────────────────────────────────────────────────
 const SUNDAY_ST_IDS = new Set(['288093', '288103']);
 
 async function buildGapsList() {
-  const container = document.getElementById('gaps-list');
+  const containers = document.querySelectorAll('.w-gaps-list');
+  if (!containers.length) return;
+  const setAll = (html) => containers.forEach(c => c.innerHTML = html);
   const now = new Date();
   const fourWeeks = new Date(now);
   fourWeeks.setDate(now.getDate() + 28);
   const nowStr = now.toISOString().slice(0, 10);
   const fwStr = fourWeeks.toISOString().slice(0, 10);
 
-  // Only Sunday AM + Sunday PM, sorted by date
   const upcoming = allCalEvents
     .filter(e => e.date >= nowStr && e.date <= fwStr && SUNDAY_ST_IDS.has(e.stId))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   if (!upcoming.length) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No Sunday services found in the next 4 weeks.</div>';
+    setAll('<div style="color:var(--muted);font-size:13px">No Sunday services found in the next 4 weeks.</div>');
     return;
   }
 
-  // Production position names for filtering
   const prodPositionNames = new Set(teamPositions.map(p => p.name));
 
   let gapRows = [];
@@ -2511,28 +2541,25 @@ async function buildGapsList() {
       const needed = (data.data || []).filter(n =>
         prodPositionNames.has(n.attributes.team_position_name)
       );
-      if (needed.length > 0) {
-        gapRows.push({ ev, needed });
-      }
+      if (needed.length > 0) gapRows.push({ ev, needed });
     } catch (e) {
       console.warn('Gaps load error:', e);
     }
   }
 
   if (!gapRows.length) {
-    container.innerHTML = '<div style="color:var(--green);font-size:13px">✓ No gaps in Sunday production rosters for the next 4 weeks!</div>';
+    setAll('<div style="color:var(--green);font-size:13px">No gaps in Sunday production rosters for the next 4 weeks.</div>');
     return;
   }
 
   const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
   function fmtGapDate(dateStr) {
     const d = new Date(dateStr + 'T12:00:00');
     return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
   }
 
-  container.innerHTML = gapRows.map(({ ev, needed }) => `
+  const html = gapRows.map(({ ev, needed }) => `
     <div class="gap-row">
       <div class="gap-date">${fmtGapDate(ev.date)}</div>
       <div style="font-size:12px;color:var(--muted);min-width:110px">${esc(ev.name)}</div>
@@ -2544,6 +2571,7 @@ async function buildGapsList() {
       </div>
     </div>
   `).join('');
+  setAll(html);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -3390,40 +3418,6 @@ function buildRunsheetSidebar() {
       <span>${esc(p.stName)}<br><small style="color:var(--muted2);font-size:10px">${esc(p.dates)}</small></span>
     </div>
   `).join('');
-  // Also populate home run sheet dropdown
-  buildHomeRunsheetDropdown(items);
-}
-
-function buildHomeRunsheetDropdown(items) {
-  const sel = document.getElementById('home-runsheet-select');
-  if (!sel) return;
-  if (!items) {
-    items = [];
-    for (const st of serviceTypes) {
-      const plans = allPlans[st.id] || [];
-      plans.forEach(p => items.push({
-        id: p.id, stId: st.id, stName: st.name,
-        date: p.attributes.sort_date.slice(0, 10),
-        dates: p.attributes.dates || p.attributes.short_dates || p.attributes.sort_date.slice(0,10),
-      }));
-    }
-    items.sort((a, b) => a.date.localeCompare(b.date));
-  }
-  sel.innerHTML = '<option value="">— Select a service —</option>' +
-    items.slice(0, 40).map(p =>
-      `<option value="${p.stId}|${p.id}">${esc(p.stName)} · ${esc(p.dates)}</option>`
-    ).join('');
-  populateMobServicePicker();
-}
-
-function onHomeRunsheetSelect(sel) {
-  const val = sel.value;
-  if (!val) return;
-  const [stId, planId] = val.split('|');
-  const label = sel.options[sel.selectedIndex].text;
-  document.getElementById('home-runsheet-plan-name').textContent = label;
-  // Load into home widget content area
-  loadRunSheetInto(stId, planId, document.getElementById('home-runsheet-content'));
 }
 
 async function loadRunSheet(stId, planId, planLabel) {
@@ -4072,7 +4066,10 @@ async function loadAnnouncements() {
 }
 
 function renderAnnouncements() {
-  const el = document.getElementById('announcements-list');
+  document.querySelectorAll('.w-announcements-list').forEach(renderAnnouncementsInto);
+}
+
+function renderAnnouncementsInto(el) {
   if (!el) return;
   if (!announcements.length) {
     el.innerHTML = '<div class="ann-empty">No announcements. Click Post to add one.</div>';
