@@ -1077,6 +1077,7 @@ option.primary-person::before { content: '★ '; }
     </div>
     <div id="tab-bar">
       <button class="tab-btn active" onclick="switchTab('home')" data-tab="home">Home</button>
+      <button class="tab-btn" onclick="switchTab('live')" data-tab="live">Live</button>
       <button class="tab-btn" onclick="switchTab('departments')" data-tab="departments">Departments</button>
       <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
@@ -1237,6 +1238,19 @@ option.primary-person::before { content: '★ '; }
             contenteditable="false">Section</div>
         </div>
       </template>
+
+      <!-- ── Live (shared dashboard, no person tabs) ──────────── -->
+      <div class="tab-panel" id="panel-live">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-size:15px;font-weight:600;color:var(--accent)">● LIVE</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="refreshLive()">↺ Refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="openLiveWidgetMenu()">+ Add Widget</button>
+            <button class="btn btn-ghost btn-sm" id="live-layout-edit-btn" onclick="toggleLiveLayoutEdit()">✏️ Edit Layout</button>
+          </div>
+        </div>
+        <div class="grid-stack" id="live-grid"></div>
+      </div>
 
       <!-- ── Matrix ─────────────────────────────────────────── -->
       <div class="tab-panel" id="panel-matrix">
@@ -1802,6 +1816,7 @@ async function doLogin() {
       document.getElementById('app').classList.add('visible');
       startClock();
       initHomeGrid();
+      initLiveGrid();
       loadPrimaryPeople();
       initSettings();
       if (pcoAppId && pcoSecret) {
@@ -1932,6 +1947,12 @@ async function connectPCO() {
       populateMobServicePicker();
       // Rebuild calendar-dependent home widget instances now data is ready
       Object.entries(widgetInstances).forEach(([id, info]) => {
+        if (['liverunsheet','countdown','confirmations','quickstats'].includes(info.type)) {
+          buildWidget(id, info.type);
+        }
+      });
+      // Same for the Live dashboard
+      Object.entries(liveInstances).forEach(([id, info]) => {
         if (['liverunsheet','countdown','confirmations','quickstats'].includes(info.type)) {
           buildWidget(id, info.type);
         }
@@ -2083,7 +2104,7 @@ const WIDGET_LABELS = {
 };
 // Default sizes per type {w, h}
 const WIDGET_SIZES = {
-  announcements: { w: 8, h: 2 }, matrix: { w: 4, h: 2 },
+  announcements: { w: 8, h: 3 }, matrix: { w: 4, h: 2 },
   clock: { w: 4, h: 4 }, runsheet: { w: 4, h: 2 },
   cal: { w: 4, h: 7 }, week: { w: 4, h: 7 }, gaps: { w: 12, h: 3 },
   liverunsheet: { w: 6, h: 6 }, countdown: { w: 3, h: 3 },
@@ -2092,13 +2113,13 @@ const WIDGET_SIZES = {
 };
 // Default starting layout (instance id, type, position)
 const DEFAULT_LAYOUT = [
-  { id: 'w-announcements', type: 'announcements', x: 0, y: 0, w: 8, h: 2 },
-  { id: 'w-matrix', type: 'matrix', x: 8, y: 0, w: 4, h: 2 },
-  { id: 'w-clock', type: 'clock', x: 0, y: 2, w: 4, h: 4 },
-  { id: 'w-runsheet', type: 'runsheet', x: 0, y: 6, w: 4, h: 2 },
-  { id: 'w-cal', type: 'cal', x: 4, y: 2, w: 4, h: 7 },
-  { id: 'w-week', type: 'week', x: 8, y: 2, w: 4, h: 7 },
-  { id: 'w-gaps', type: 'gaps', x: 0, y: 9, w: 12, h: 3 },
+  { id: 'w-announcements', type: 'announcements', x: 0, y: 0, w: 8, h: 3 },
+  { id: 'w-matrix', type: 'matrix', x: 8, y: 0, w: 4, h: 3 },
+  { id: 'w-clock', type: 'clock', x: 0, y: 3, w: 4, h: 4 },
+  { id: 'w-runsheet', type: 'runsheet', x: 0, y: 7, w: 4, h: 2 },
+  { id: 'w-cal', type: 'cal', x: 4, y: 3, w: 4, h: 7 },
+  { id: 'w-week', type: 'week', x: 8, y: 3, w: 4, h: 7 },
+  { id: 'w-gaps', type: 'gaps', x: 0, y: 10, w: 12, h: 3 },
 ];
 
 // Track each instance's type + any extra data (e.g. section title)
@@ -2176,8 +2197,8 @@ function buildWidget(instanceId, type) {
       else renderAnnouncementsInto(root.querySelector('.w-announcements-list'));
       break;
     case 'cal': renderMiniCalInto(root.querySelector('.w-mini-cal')); break;
-    case 'week': renderWeekInto(root.querySelector('.w-week-services')); break;
-    case 'gaps': renderGapsInto(root.querySelector('.w-gaps-list')); break;
+    case 'week': buildWeekServices(); break;
+    case 'gaps': buildGapsList(); break;
     case 'clock': /* clock updates globally via startClock */ break;
     case 'liverunsheet': buildLiveRunSheetInto(root); break;
     case 'countdown': buildCountdownInto(root); break;
@@ -2344,6 +2365,178 @@ function removeWidgetFromGrid(id) {
   delete widgetInstances[id];
   saveHomeLayout();
   toast((WIDGET_LABELS[type] || 'Widget') + ' removed.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  LIVE DASHBOARD — separate shared grid (no person tabs)
+// ═══════════════════════════════════════════════════════════════════
+let liveGrid = null;
+let liveLayoutEditing = false;
+let liveWidgetCounter = 0;
+let liveInstances = {}; // { instanceId: {type, title?} }
+
+function liveLayoutKey() {
+  return window.innerWidth <= 768 ? 'live-mobile' : 'live-desktop';
+}
+
+function initLiveGrid() {
+  if (liveGrid || typeof GridStack === 'undefined') return;
+  liveGrid = GridStack.init({
+    column: 12, cellHeight: 64, margin: 8, marginUnit: 'px',
+    disableDrag: true, disableResize: true, float: true,
+    columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
+  }, '#live-grid');
+  loadLiveLayout();
+}
+
+async function saveLiveLayout() {
+  if (!liveGrid) return;
+  const layout = liveGrid.engine.nodes.map(n => {
+    const id = n.el.getAttribute('gs-id');
+    const type = n.el.dataset.widgetType;
+    const entry = { id, type, x: n.x, y: n.y, w: n.w, h: n.h };
+    if (type === 'section' && liveInstances[id] && liveInstances[id].title) entry.title = liveInstances[id].title;
+    return entry;
+  });
+  try {
+    await fetch('/homelayout/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: liveLayoutKey(), layout }),
+    });
+    toast('Live layout saved.', 'success');
+  } catch (e) { console.warn('saveLiveLayout error:', e); }
+}
+
+async function loadLiveLayout() {
+  if (!liveGrid) return;
+  let layout = null;
+  try {
+    const res = await fetch('/homelayout');
+    const data = await res.json();
+    layout = data[liveLayoutKey()];
+  } catch (e) { console.warn('loadLiveLayout error:', e); }
+
+  const isValid = Array.isArray(layout) && layout.length && layout.every(n => n.type && WIDGET_LABELS[n.type]);
+  if (!isValid) layout = DEFAULT_LAYOUT.map(w => ({ ...w, id: 'live-' + w.id }));
+
+  liveGrid.removeAll(false);
+  document.getElementById('live-grid').innerHTML = '';
+  liveInstances = {};
+  liveWidgetCounter = 0;
+
+  liveGrid.batchUpdate();
+  layout.forEach(node => {
+    const type = node.type;
+    if (!type || !WIDGET_LABELS[type]) return;
+    const id = node.id || ('live-w-' + type + '-' + (++liveWidgetCounter));
+    liveInstances[id] = { type };
+    if (node.title) liveInstances[id].title = node.title;
+    const el = createLiveWidgetEl(id, type);
+    if (!el) return;
+    document.getElementById('live-grid').appendChild(el);
+    liveGrid.makeWidget(el);
+    liveGrid.update(el, { x: node.x, y: node.y, w: node.w, h: node.h });
+    const m = /-(\d+)$/.exec(id);
+    if (m) liveWidgetCounter = Math.max(liveWidgetCounter, parseInt(m[1]));
+  });
+  liveGrid.commit();
+  Object.entries(liveInstances).forEach(([id, info]) => buildWidget(id, info.type));
+}
+
+// Create live widget element (uses live-specific handlers)
+function createLiveWidgetEl(instanceId, type) {
+  const tpl = document.getElementById('tpl-' + type);
+  if (!tpl) return null;
+  const item = document.createElement('div');
+  item.className = 'grid-stack-item';
+  item.setAttribute('gs-id', instanceId);
+  item.dataset.widgetType = type;
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'grid-stack-item-content card';
+  if (type === 'section') contentDiv.classList.add('section-card');
+  contentDiv.appendChild(tpl.content.cloneNode(true));
+  item.appendChild(contentDiv);
+  contentDiv.querySelectorAll('[data-act]').forEach(el => {
+    const act = el.dataset.act;
+    if (act === 'refresh') el.onclick = () => buildWidget(instanceId, type);
+    else if (act === 'notes') {
+      el.oninput = () => localStorage.setItem('notes-' + instanceId, el.value);
+    } else if (act === 'section-title') {
+      el.onblur = () => { if (liveInstances[instanceId]) liveInstances[instanceId].title = el.textContent; saveLiveLayout(); };
+      el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } };
+    }
+  });
+  return item;
+}
+
+function toggleLiveLayoutEdit() {
+  if (!liveGrid) return;
+  liveLayoutEditing = !liveLayoutEditing;
+  liveGrid.enableMove(liveLayoutEditing);
+  liveGrid.enableResize(liveLayoutEditing);
+  document.getElementById('live-grid').classList.toggle('editing', liveLayoutEditing);
+  const btn = document.getElementById('live-layout-edit-btn');
+  if (liveLayoutEditing) {
+    btn.textContent = '✓ Done'; btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+    document.querySelectorAll('#live-grid .grid-stack-item').forEach(el => {
+      const id = el.getAttribute('gs-id');
+      const content = el.querySelector('.grid-stack-item-content');
+      if (content && !content.querySelector('.widget-remove-btn')) {
+        const rm = document.createElement('button');
+        rm.className = 'widget-remove-btn'; rm.textContent = '✕'; rm.title = 'Remove widget';
+        rm.onclick = (e) => { e.stopPropagation(); removeLiveWidget(id); };
+        content.appendChild(rm);
+      }
+      const st = el.querySelector('.w-section-title');
+      if (st) st.setAttribute('contenteditable', 'true');
+    });
+  } else {
+    btn.textContent = '✏️ Edit Layout'; btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost');
+    document.querySelectorAll('#live-grid .widget-remove-btn').forEach(b => b.remove());
+    document.querySelectorAll('#live-grid .w-section-title').forEach(st => st.setAttribute('contenteditable', 'false'));
+    saveLiveLayout();
+  }
+}
+
+function openLiveWidgetMenu() {
+  const listHtml = Object.keys(WIDGET_LABELS).map(type =>
+    `<button class="widget-menu-item" onclick="addLiveWidget('${type}')">${esc(WIDGET_LABELS[type])}</button>`
+  ).join('');
+  document.getElementById('widget-menu-list').innerHTML = listHtml;
+  document.getElementById('widget-menu-modal').classList.remove('hidden');
+}
+
+function addLiveWidget(type) {
+  if (!liveGrid || !WIDGET_LABELS[type]) return;
+  const id = 'live-w-' + type + '-' + (++liveWidgetCounter);
+  liveInstances[id] = { type };
+  const el = createLiveWidgetEl(id, type);
+  if (!el) return;
+  document.getElementById('live-grid').appendChild(el);
+  liveGrid.makeWidget(el);
+  const size = WIDGET_SIZES[type] || { w: 4, h: 3 };
+  liveGrid.update(el, { x: 0, y: 0, w: size.w, h: size.h, autoPosition: true });
+  liveGrid.compact();
+  buildWidget(id, type);
+  closeWidgetMenu();
+  saveLiveLayout();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast(WIDGET_LABELS[type] + ' added.', 'success');
+}
+
+function removeLiveWidget(id) {
+  const el = document.querySelector(`#live-grid .grid-stack-item[gs-id="${id}"]`);
+  if (!el) return;
+  const type = el.dataset.widgetType;
+  liveGrid.removeWidget(el, true);
+  delete liveInstances[id];
+  saveLiveLayout();
+  toast((WIDGET_LABELS[type] || 'Widget') + ' removed.', 'success');
+}
+
+function refreshLive() {
+  loadLiveLayout();
+  toast('Live dashboard refreshed.', 'success');
 }
 
 // ── Widget data builders (instance-scoped) ─────────────────────────
@@ -4070,6 +4263,10 @@ function switchTab(tabId) {
   if (tabId === 'calendar') buildFullCalendar();
   if (tabId === 'audio') { loadPatch(); loadSignalFlow(); }
   if (tabId === 'home') { loadAnnouncements(); }
+  if (tabId === 'live' && liveGrid) {
+    // Grid was likely init'd while hidden — nudge it to recalc and refresh data
+    setTimeout(() => { try { liveGrid.onParentResize(); } catch(e){} }, 50);
+  }
   if (tabId === 'people' && !statsCache['6']) { /* auto-load on first visit */ }
 }
 
