@@ -490,6 +490,15 @@ a { color: var(--accent); text-decoration: none; }
   padding: 10px 0; border-bottom: 1px solid var(--border);
 }
 .runsheet-item:last-child { border-bottom: none; }
+/* Live tracking states */
+.runsheet-item.live-active {
+  background: var(--accent-glow); border-radius: var(--radius-sm);
+  border-bottom-color: transparent;
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 10px; margin-left: -10px;
+}
+.runsheet-item.live-active .runsheet-title { color: var(--accent); font-weight: 600; }
+.runsheet-item.live-done { opacity: .4; }
 .runsheet-seq {
   font-family: var(--mono); font-size: 11px; color: var(--muted2);
   padding-top: 3px; text-align: right; padding-right: 12px;
@@ -1279,6 +1288,10 @@ option.primary-person::before { content: '★ '; }
           <div>
             <div class="section-title">Run Sheet</div>
             <div class="section-sub" id="runsheet-plan-name">Select a service</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="live-clock-display" style="display:none;font-family:var(--mono);font-size:13px;color:var(--accent)"></span>
+            <button class="btn btn-ghost btn-sm" id="live-runsheet-btn" onclick="toggleLiveRunSheet()" style="display:none">▶ Go Live</button>
           </div>
         </div>
         <!-- Mobile: service picker dropdown -->
@@ -2147,10 +2160,22 @@ function buildLiveRunSheet() {
   const sub = document.getElementById('liverunsheet-sub');
   const content = document.getElementById('liverunsheet-content');
   if (!content) return;
+
+  if (!calendarDataReady) {
+    content.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Waiting for service data…</div>';
+    // Retry shortly until calendar data is ready
+    setTimeout(buildLiveRunSheet, 1500);
+    return;
+  }
+
   const next = getNextService();
   if (!next) {
     if (sub) sub.textContent = 'No upcoming service';
     content.innerHTML = '<div class="state-msg">No upcoming services found.</div>';
+    return;
+  }
+  if (!next.plan || !next.plan.id) {
+    content.innerHTML = '<div class="state-msg">Service data incomplete.</div>';
     return;
   }
   const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -3399,10 +3424,15 @@ async function loadRunSheet(stId, planId, planLabel) {
   const el = document.getElementById('runsheet-plan-name');
   if (el) el.textContent = planLabel;
   const content = document.getElementById('runsheet-content');
-  if (content) await loadRunSheetInto(stId, planId, content);
+  if (content) await loadRunSheetInto(stId, planId, content, true);
+  // Show the Go Live button now that a service is loaded
+  const liveBtn = document.getElementById('live-runsheet-btn');
+  if (liveBtn) liveBtn.style.display = 'inline-flex';
+  // Reset any prior live session
+  stopLiveRunSheet();
 }
 
-async function loadRunSheetInto(stId, planId, container) {
+async function loadRunSheetInto(stId, planId, container, trackLive) {
   container.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading run sheet…</div>';
   try {
     const data = await pcoGet(`/services/v2/service_types/${stId}/plans/${planId}/items?per_page=100`);
@@ -3446,7 +3476,10 @@ async function loadRunSheetInto(stId, planId, container) {
       </div>
     </div>`;
 
+    // Track cumulative time for live highlighting
+    let cumulativeMs = 0;
     let seq = 0;
+    let liveIdx = 0;
     items.forEach(item => {
       const a = item.attributes;
       const type = a.item_type || '';
@@ -3458,7 +3491,11 @@ async function loadRunSheetInto(stId, planId, container) {
       seq++;
       const dur = fmtDuration(a.length);
       const tc = typeClass(type);
-      html += `<div class="runsheet-item">
+      const itemLen = a.length || 0;
+      const dataAttrs = trackLive
+        ? `data-live-idx="${liveIdx}" data-start-ms="${cumulativeMs}" data-len-ms="${itemLen}"`
+        : '';
+      html += `<div class="runsheet-item" ${dataAttrs}>
         <div class="runsheet-seq">${String(seq).padStart(2,'0')}</div>
         <div style="padding-top:2px"><span class="runsheet-type-badge ${tc}">${esc(type || 'Item')}</span></div>
         <div class="runsheet-body">
@@ -3468,6 +3505,8 @@ async function loadRunSheetInto(stId, planId, container) {
         </div>
         <div class="runsheet-duration">${dur !== '—' ? dur : ''}</div>
       </div>`;
+      cumulativeMs += itemLen;
+      liveIdx++;
     });
 
     container.innerHTML = html;
@@ -3475,6 +3514,69 @@ async function loadRunSheetInto(stId, planId, container) {
     console.warn('loadRunSheet error:', e);
     container.innerHTML = `<div class="state-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
   }
+}
+
+// ── Live run sheet tracking ────────────────────────────────────────
+let liveRunSheetStart = null;
+let liveRunSheetInterval = null;
+
+function toggleLiveRunSheet() {
+  if (liveRunSheetStart) {
+    stopLiveRunSheet();
+  } else {
+    startLiveRunSheet();
+  }
+}
+
+function startLiveRunSheet() {
+  liveRunSheetStart = Date.now();
+  const btn = document.getElementById('live-runsheet-btn');
+  if (btn) { btn.textContent = '■ Stop Live'; btn.classList.add('btn-primary'); btn.classList.remove('btn-ghost'); }
+  const clock = document.getElementById('live-clock-display');
+  if (clock) clock.style.display = 'inline';
+  updateLiveHighlight();
+  liveRunSheetInterval = setInterval(updateLiveHighlight, 1000);
+}
+
+function stopLiveRunSheet() {
+  liveRunSheetStart = null;
+  if (liveRunSheetInterval) { clearInterval(liveRunSheetInterval); liveRunSheetInterval = null; }
+  const btn = document.getElementById('live-runsheet-btn');
+  if (btn) { btn.textContent = '▶ Go Live'; btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost'); }
+  const clock = document.getElementById('live-clock-display');
+  if (clock) clock.style.display = 'none';
+  document.querySelectorAll('.runsheet-item.live-active, .runsheet-item.live-done')
+    .forEach(el => el.classList.remove('live-active', 'live-done'));
+}
+
+function updateLiveHighlight() {
+  if (!liveRunSheetStart) return;
+  const elapsed = Date.now() - liveRunSheetStart;
+
+  // Update elapsed clock display
+  const clock = document.getElementById('live-clock-display');
+  if (clock) {
+    const totalSec = Math.floor(elapsed / 1000);
+    const mm = Math.floor(totalSec / 60);
+    const ss = totalSec % 60;
+    clock.textContent = `● LIVE ${mm}:${String(ss).padStart(2,'0')}`;
+  }
+
+  const items = document.querySelectorAll('#runsheet-content .runsheet-item[data-live-idx]');
+  let activeEl = null;
+  items.forEach(el => {
+    const start = parseInt(el.dataset.startMs) || 0;
+    const len = parseInt(el.dataset.lenMs) || 0;
+    el.classList.remove('live-active', 'live-done');
+    if (elapsed >= start && (len === 0 || elapsed < start + len)) {
+      if (!activeEl) { el.classList.add('live-active'); activeEl = el; }
+    } else if (elapsed >= start + len && len > 0) {
+      el.classList.add('live-done');
+    }
+  });
+
+  // Auto-scroll active item into view
+  if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // ═══════════════════════════════════════════════════════════════════
