@@ -240,6 +240,15 @@ a { color: var(--accent); text-decoration: none; }
   min-width: 50px; padding-top: 2px; }
 .week-service-name { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
 .week-positions { display: flex; flex-direction: column; gap: 5px; }
+.week-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.week-tab {
+  font-family: var(--mono); font-size: 12px; padding: 4px 12px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--muted); cursor: pointer;
+  transition: all .15s;
+}
+.week-tab:hover { color: var(--text); border-color: var(--accent); }
+.week-tab.active { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
 .pos-pill {
   font-size: 11px; padding: 4px 10px 4px 8px; border-radius: 6px;
   font-family: var(--mono); white-space: nowrap; display: flex;
@@ -1838,6 +1847,8 @@ function posClass(posName) {
   if (n.includes('runner')) return 'pos-runner';
   return '';
 }
+let weekServicesData = [];
+
 async function buildWeekServices() {
   const container = document.getElementById('week-services');
   const now = new Date();
@@ -1849,65 +1860,74 @@ async function buildWeekServices() {
   const mondayStr = monday.toISOString().slice(0, 10);
   const sundayStr = sunday.toISOString().slice(0, 10);
 
-  // Find all events this week
-  const thisWeek = allCalEvents.filter(e => e.date >= mondayStr && e.date <= sundayStr);
+  const thisWeek = allCalEvents.filter(e => e.date >= mondayStr && e.date <= sundayStr)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   if (!thisWeek.length) {
     container.innerHTML = '<div style="color:var(--muted);font-size:13px">No services this week.</div>';
     return;
   }
 
-  // For each event, load team members and skip if no production people found
-  let html = '';
+  // Load all services' members, keep only those with production team
+  weekServicesData = [];
   for (const ev of thisWeek) {
-    const plan = ev.plan;
-    const stId = ev.stId;
     try {
       const membersData = await pcoGet(
-        `/services/v2/service_types/${stId}/plans/${plan.id}/team_members?per_page=100`
+        `/services/v2/service_types/${ev.stId}/plans/${ev.plan.id}/team_members?per_page=100`
       );
       const members = membersData.data || [];
-      // Only include if at least one member is a known production person
       const prodMembers = members.filter(m =>
         teamPeople.some(tp => tp.id === m.relationships.person.data.id)
       );
-      if (!prodMembers.length) continue; // skip — no production team here
+      if (!prodMembers.length) continue;
 
-      // Build position pills
       const posMap = {};
       prodMembers.forEach(m => {
         const pos = m.attributes.team_position_name || 'Unknown';
         if (!posMap[pos]) posMap[pos] = [];
         posMap[pos].push({ name: m.attributes.name, status: m.attributes.status });
       });
-
-      let pillsHtml = teamPositions.map(pos => {
-        const entries = posMap[pos.name] || [];
-        const pc = posClass(pos.name);
-        const dot = `<span class="pos-dot"></span>`;
-        if (entries.length === 0) {
-          return `<span class="pos-pill empty ${pc}">${dot}${esc(pos.name)}: —</span>`;
-        }
-        return entries.map(e =>
-          `<span class="pos-pill ${statusLabel(e.status)} ${pc}">${dot}${esc(pos.name)}: ${esc(e.name)}</span>`
-        ).join('');
-      }).join('');
-
-      if (!pillsHtml) pillsHtml = '<span class="pos-pill empty">No positions</span>';
-
-      html += `
-        <div class="week-service-row">
-          <div class="week-date">${ev.date.slice(5).replace('-','/')}</div>
-          <div>
-            <div class="week-service-name">${esc(ev.name)}</div>
-            <div class="week-positions">${pillsHtml}</div>
-          </div>
-        </div>`;
+      weekServicesData.push({ name: ev.name, date: ev.date, posMap });
     } catch (e) {
       console.warn('Week service load error:', e);
     }
   }
-  container.innerHTML = html || '<div style="color:var(--muted);font-size:13px">No services with production team this week.</div>';
+
+  if (!weekServicesData.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:13px">No services with production team this week.</div>';
+    return;
+  }
+
+  renderWeekServices(0);
+}
+
+function renderWeekServices(activeIdx) {
+  const container = document.getElementById('week-services');
+
+  // Tabs row
+  const tabs = weekServicesData.map((s, i) => {
+    const dateLabel = s.date.slice(5).replace('-', '/');
+    return `<button class="week-tab${i === activeIdx ? ' active' : ''}" onclick="renderWeekServices(${i})">${dateLabel}</button>`;
+  }).join('');
+
+  // Active service positions
+  const s = weekServicesData[activeIdx];
+  const pillsHtml = teamPositions.map(pos => {
+    const entries = s.posMap[pos.name] || [];
+    const pc = posClass(pos.name);
+    const dot = `<span class="pos-dot"></span>`;
+    if (entries.length === 0) {
+      return `<span class="pos-pill empty ${pc}">${dot}${esc(pos.name)}: —</span>`;
+    }
+    return entries.map(e =>
+      `<span class="pos-pill ${statusLabel(e.status)} ${pc}">${dot}${esc(pos.name)}: ${esc(e.name)}</span>`
+    ).join('');
+  }).join('');
+
+  container.innerHTML = `
+    <div class="week-tabs">${tabs}</div>
+    <div class="week-service-name" style="margin-bottom:8px">${esc(s.name)}</div>
+    <div class="week-positions">${pillsHtml}</div>`;
 }
 
 // ─── Gaps list ────────────────────────────────────────────────────
