@@ -1507,6 +1507,14 @@ option.primary-person::before { content: '★ '; }
             </div>
             <div id="primary-people-list" class="tag-list"></div>
           </div>
+
+          <div class="card" style="margin-top:16px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px">Display</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
+              Enter fullscreen to hide the browser chrome — useful for a wall display during service. Press Esc or click the button again to exit.
+            </div>
+            <button class="btn btn-primary btn-sm" id="fullscreen-btn" onclick="toggleLiveFullscreen()">⛶ Enter Fullscreen</button>
+          </div>
         </div>
       </div>
 
@@ -2538,6 +2546,39 @@ function refreshLive() {
   loadLiveLayout();
   toast('Live dashboard refreshed.', 'success');
 }
+
+// ── Fullscreen (whole app) ─────────────────────────────────────────
+function toggleLiveFullscreen() {
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+  if (isFs) {
+    exitFullscreenSafe();
+  } else {
+    const el = document.documentElement; // fullscreen the whole page
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  }
+}
+
+function exitFullscreenSafe() {
+  if (document.exitFullscreen) document.exitFullscreen();
+  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+}
+
+// Update the button label + relayout grid when fullscreen state changes
+function onFullscreenChange() {
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const btn = document.getElementById('fullscreen-btn');
+  if (btn) {
+    btn.textContent = isFs ? '✕ Exit Fullscreen' : '⛶ Enter Fullscreen';
+  }
+  // GridStack needs to recalc after the viewport size changes
+  setTimeout(() => {
+    try { if (liveGrid) liveGrid.onParentResize(); } catch (e) {}
+    try { if (homeGrid) homeGrid.onParentResize(); } catch (e) {}
+  }, 100);
+}
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
 // ── Widget data builders (instance-scoped) ─────────────────────────
 
