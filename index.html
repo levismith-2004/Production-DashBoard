@@ -2309,11 +2309,23 @@ function addWidgetToGrid(id) {
   const el = document.querySelector(`.grid-stack-item[gs-id="${id}"]`);
   if (!el) return;
   el.style.display = '';
+  // Sensible default sizes per widget
+  const sizes = {
+    liverunsheet: { w: 6, h: 6 },
+    countdown: { w: 3, h: 3 },
+    quickstats: { w: 3, h: 3 },
+    notes: { w: 4, h: 4 },
+    confirmations: { w: 4, h: 4 },
+  };
+  const size = sizes[id] || { w: 4, h: 3 };
+  // Add at top-left; GridStack will find the first free spot
   homeGrid.makeWidget(el);
-  // Place at bottom
-  homeGrid.update(el, { x: 0, y: 1000, w: 4, h: 3 });
+  homeGrid.update(el, { x: 0, y: 0, w: size.w, h: size.h, autoPosition: true });
+  homeGrid.compact();
   closeWidgetMenu();
   saveHomeLayout();
+  // Scroll back to top so the user sees the new widget
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   // Re-render any data the widget needs
   if (id === 'week') buildWeekServices();
   if (id === 'gaps') buildGapsList();
