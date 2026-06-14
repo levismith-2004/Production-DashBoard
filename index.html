@@ -223,6 +223,16 @@ a { color: var(--accent); text-decoration: none; }
   align-items: center; justify-content: center;
 }
 .grid-stack.editing .widget-remove-btn { display: flex; }
+/* Home person sub-tabs */
+.home-persons { display: flex; gap: 6px; flex-wrap: wrap; }
+.home-person-tab {
+  font-size: 13px; font-weight: 500; padding: 6px 16px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border2);
+  background: var(--surface); color: var(--muted); cursor: pointer;
+  transition: all .15s;
+}
+.home-person-tab:hover { color: var(--text); border-color: var(--accent); }
+.home-person-tab.active { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
 /* Section heading widget — transparent, just a label */
 .grid-stack-item-content.section-card {
   background: transparent; border: none; box-shadow: none;
@@ -1104,10 +1114,13 @@ option.primary-person::before { content: '★ '; }
 
       <!-- ── Home ──────────────────────────────────────────── -->
       <div class="tab-panel active" id="panel-home">
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
-          <button class="btn btn-ghost btn-sm" onclick="refreshHome()">↺ Refresh</button>
-          <button class="btn btn-ghost btn-sm" id="add-widget-btn" onclick="openWidgetMenu()">+ Add Widget</button>
-          <button class="btn btn-ghost btn-sm" id="layout-edit-btn" onclick="toggleLayoutEdit()">✏️ Edit Layout</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <div class="home-persons" id="home-persons"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="refreshHome()">↺ Refresh</button>
+            <button class="btn btn-ghost btn-sm" id="add-widget-btn" onclick="openWidgetMenu()">+ Add Widget</button>
+            <button class="btn btn-ghost btn-sm" id="layout-edit-btn" onclick="toggleLayoutEdit()">✏️ Edit Layout</button>
+          </div>
         </div>
         <div class="grid-stack" id="home-grid"></div>
       </div>
@@ -2031,6 +2044,27 @@ let homeGrid = null;
 let layoutEditing = false;
 let widgetCounter = 0;
 
+// Home dashboard people (sub-tabs) — each has their own layout
+const HOME_PERSONS = ['Levi', 'Callen', 'George', 'Tom'];
+let activePerson = localStorage.getItem('home-active-person') || HOME_PERSONS[0];
+
+function renderPersonTabs() {
+  const el = document.getElementById('home-persons');
+  if (!el) return;
+  el.innerHTML = HOME_PERSONS.map(p =>
+    `<button class="home-person-tab${p === activePerson ? ' active' : ''}" onclick="switchHomePerson('${p}')">${esc(p)}</button>`
+  ).join('');
+}
+
+function switchHomePerson(person) {
+  if (person === activePerson) return;
+  if (layoutEditing) toggleLayoutEdit();
+  activePerson = person;
+  localStorage.setItem('home-active-person', person);
+  renderPersonTabs();
+  loadHomeLayout();
+}
+
 // Widget type metadata
 const WIDGET_LABELS = {
   announcements: 'Flags',
@@ -2085,11 +2119,13 @@ function initHomeGrid() {
       breakpoints: [{ w: 768, c: 1 }],
     },
   }, '#home-grid');
+  renderPersonTabs();
   loadHomeLayout();
 }
 
 function layoutKey() {
-  return window.innerWidth <= 768 ? 'mobile' : 'desktop';
+  const device = window.innerWidth <= 768 ? 'mobile' : 'desktop';
+  return `${activePerson}-${device}`;
 }
 
 // Create a widget instance element from a template and add to grid
@@ -2215,7 +2251,7 @@ async function saveHomeLayout() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: layoutKey(), layout }),
     });
-    toast('Layout saved for ' + layoutKey() + '.', 'success');
+    toast(`Layout saved for ${activePerson}.`, 'success');
   } catch (e) { console.warn('saveHomeLayout error:', e); }
 }
 
