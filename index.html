@@ -2228,8 +2228,9 @@ async function loadHomeLayout() {
     layout = data[layoutKey()];
   } catch (e) { console.warn('loadHomeLayout error:', e); }
 
-  // Fall back to default layout if none saved
-  if (!Array.isArray(layout) || !layout.length) {
+  // Fall back to default layout if none saved, or if it's the old format (no type field)
+  const isValid = Array.isArray(layout) && layout.length && layout.every(n => n.type && WIDGET_LABELS[n.type]);
+  if (!isValid) {
     layout = DEFAULT_LAYOUT.map(w => ({ ...w }));
   }
 
