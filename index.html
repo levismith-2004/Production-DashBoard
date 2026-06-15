@@ -1071,7 +1071,10 @@ option.primary-person::before { content: '★ '; }
   <div class="login-card">
     <div class="login-logo">🎛️</div>
     <h1>Production Dashboard</h1>
-    <p>Enter your password to continue</p>
+    <p>Select your account and sign in</p>
+    <select id="login-user" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 12px;border-radius:var(--radius-sm);outline:none;font-size:14px;margin-bottom:10px">
+      <option value="">— Select user —</option>
+    </select>
     <input type="password" id="login-pw" placeholder="Password" autocomplete="current-password"/>
     <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
     <div class="login-error" id="login-error"></div>
@@ -1845,23 +1848,30 @@ document.getElementById('login-pw').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
 });
 
+let currentUser = null;
+
 async function doLogin() {
+  const username = document.getElementById('login-user').value;
   const pw = document.getElementById('login-pw').value;
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
+  if (!username) { errEl.textContent = 'Please select a user.'; return; }
   try {
     const res = await fetch('/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw })
+      body: JSON.stringify({ username, password: pw })
     });
     const data = await res.json();
     if (data.ok) {
+      currentUser = data.user;
       pcoAppId = data.appId || '';
       pcoSecret = data.secret || '';
       pcoAuth = btoa(`${pcoAppId}:${pcoSecret}`);
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').classList.add('visible');
+      // Load this user's saved data (theme + layouts) before building
+      await loadUserData();
       startClock();
       initHomeGrid();
       initLiveGrid();
@@ -1873,13 +1883,53 @@ async function doLogin() {
       loadInventory();
       loadAnnouncements();
     } else {
-      errEl.textContent = 'Incorrect password.';
+      errEl.textContent = 'Incorrect username or password.';
     }
   } catch (e) {
     console.warn('Login error:', e);
     errEl.textContent = 'Connection error.';
   }
 }
+
+// ── Per-user data (theme + home layouts) ───────────────────────────
+let userData = { theme: null, homelayout: {} };
+
+async function loadUserData() {
+  if (!currentUser) return;
+  localStorage.setItem('last-user', currentUser);
+  try {
+    const res = await fetch('/userdata?user=' + encodeURIComponent(currentUser));
+    const data = await res.json();
+    userData = { theme: data.theme || null, homelayout: data.homelayout || {} };
+  } catch (e) {
+    console.warn('loadUserData error:', e);
+    userData = { theme: null, homelayout: {} };
+  }
+  // Apply this user's theme
+  if (userData.theme) { themeState = userData.theme; }
+  applyTheme();
+}
+
+let userSaveTimer = null;
+function saveUserData() {
+  if (!currentUser) return;
+  // Debounce to avoid hammering GitHub on rapid changes
+  clearTimeout(userSaveTimer);
+  userSaveTimer = setTimeout(async () => {
+    try {
+      await fetch('/userdata/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: currentUser, data: userData }),
+      });
+    } catch (e) { console.warn('saveUserData error:', e); }
+  }, 600);
+}
+
+// Populate the login users when the page loads
+populateLoginUsers();
+
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  CLOCK
@@ -2303,7 +2353,6 @@ function toggleLayoutEdit() {
 
 async function saveHomeLayout() {
   if (!homeGrid) return;
-  // Build layout array with id, type, position, and any extra data
   const nodes = homeGrid.engine.nodes;
   const layout = nodes.map(n => {
     const id = n.el.getAttribute('gs-id');
@@ -2314,24 +2363,15 @@ async function saveHomeLayout() {
     }
     return entry;
   });
-  try {
-    await fetch('/homelayout/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: layoutKey(), layout }),
-    });
-    toast(`Layout saved for ${activePerson}.`, 'success');
-  } catch (e) { console.warn('saveHomeLayout error:', e); }
+  userData.homelayout = userData.homelayout || {};
+  userData.homelayout[layoutKey()] = layout;
+  saveUserData();
+  toast(`Layout saved for ${activePerson}.`, 'success');
 }
 
 async function loadHomeLayout() {
   if (!homeGrid) return;
-  let layout = null;
-  try {
-    const res = await fetch('/homelayout');
-    const data = await res.json();
-    layout = data[layoutKey()];
-  } catch (e) { console.warn('loadHomeLayout error:', e); }
+  let layout = (userData.homelayout && userData.homelayout[layoutKey()]) || null;
 
   // Fall back to default layout if none saved, or if it's the old format (no type field)
   const isValid = Array.isArray(layout) && layout.length && layout.every(n => n.type && WIDGET_LABELS[n.type]);
@@ -2369,7 +2409,7 @@ async function loadHomeLayout() {
 
 // Refresh all home data
 function refreshHome() {
-  loadHomeLayout();
+  loadUserData().then(() => loadHomeLayout());
   toast('Home refreshed.', 'success');
 }
 
@@ -2707,10 +2747,17 @@ function resetTheme() {
 }
 
 function saveTheme() {
-  localStorage.setItem('theme', JSON.stringify(themeState));
+  // Persist to the logged-in user's data (falls back to localStorage pre-login)
+  if (currentUser) {
+    userData.theme = themeState;
+    saveUserData();
+  } else {
+    localStorage.setItem('theme', JSON.stringify(themeState));
+  }
 }
 
 function loadTheme() {
+  // Pre-login: use localStorage so the login screen is themed
   try {
     const saved = JSON.parse(localStorage.getItem('theme'));
     if (saved && saved.mode) themeState = saved;

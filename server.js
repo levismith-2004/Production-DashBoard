@@ -3,11 +3,33 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const PCO_APP_ID = process.env.PCO_APP_ID || '';
 const PCO_SECRET = process.env.PCO_SECRET || '';
+
+// ── Users ────────────────────────────────────────────────────────────────────
+// Fixed list of accounts. Passwords are read from env vars so they're not in code:
+//   USER_PASS_LEVI, USER_PASS_CALLEN, USER_PASS_GEORGE, USER_PASS_TOM
+// If an env var is unset, that user falls back to APP_PASSWORD (or any password).
+const USERS = ['Levi', 'Callen', 'George', 'Tom'];
+
+function passwordFor(username) {
+  const key = 'USER_PASS_' + username.toUpperCase();
+  return process.env[key] || APP_PASSWORD || '';
+}
+
+function checkUser(username, password) {
+  // Case-insensitive username match against the fixed list
+  const match = USERS.find(u => u.toLowerCase() === String(username || '').toLowerCase());
+  if (!match) return null;
+  const expected = passwordFor(match);
+  // If no password is configured at all, allow any (convenience for setup)
+  if (!expected) return match;
+  return password === expected ? match : null;
+}
 
 // GitHub-backed inventory config (set these in Railway environment variables)
 const GITHUB_TOKEN  = process.env.GITHUB_TOKEN  || '';
@@ -18,6 +40,11 @@ const ANNOUNCEMENTS_PATH = 'announcements.json';
 const PATCH_PATH = 'patch.json';
 const SIGNALFLOW_PATH = 'signalflow.json';
 const HOMELAYOUT_PATH = 'homelayout.json';
+
+// Per-user data file path in the data repo
+function userDataPath(username) {
+  return `users/${username.toLowerCase()}.json`;
+}
 
 // Local file fallback (used if GitHub env vars not set)
 const INVENTORY_FILE = path.join(__dirname, 'inventory.json');
@@ -465,6 +492,72 @@ async function homeLayoutSave(data) {
   }
 }
 
+// ── Per-user data (theme + layouts), seeded from defaults ───────────────────
+const USER_DATA_DEFAULT = { theme: null, homelayout: {} };
+
+async function userDataRead(username) {
+  const p = userDataPath(username);
+  if (githubEnabled()) {
+    try {
+      const result = await httpsRequest({
+        hostname: 'api.github.com',
+        path: `/repos/${GITHUB_REPO}/contents/${p}?ref=${GITHUB_BRANCH}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'production-dashboard',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
+      if (result.status === 404) return { ...USER_DATA_DEFAULT };
+      const data = JSON.parse(result.body);
+      return JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+    } catch (e) { return { ...USER_DATA_DEFAULT }; }
+  }
+  try {
+    const lf = path.join(__dirname, `user-${username.toLowerCase()}.json`);
+    if (!fs.existsSync(lf)) return { ...USER_DATA_DEFAULT };
+    return JSON.parse(fs.readFileSync(lf, 'utf8'));
+  } catch (e) { return { ...USER_DATA_DEFAULT }; }
+}
+
+async function userDataSave(username, data) {
+  const p = userDataPath(username);
+  if (githubEnabled()) {
+    const result = await httpsRequest({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${p}?ref=${GITHUB_BRANCH}`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'production-dashboard',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+    const sha = result.status === 404 ? null : JSON.parse(result.body).sha;
+    const content = Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
+    const body = { message: `Update user data: ${username}`, content, branch: GITHUB_BRANCH };
+    if (sha) body.sha = sha;
+    await httpsRequest({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${p}`,
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'production-dashboard',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    }, JSON.stringify(body));
+  } else {
+    const lf = path.join(__dirname, `user-${username.toLowerCase()}.json`);
+    fs.writeFileSync(lf, JSON.stringify(data, null, 2), 'utf8');
+  }
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -486,15 +579,21 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/auth' && method === 'POST') {
     try {
       const body = await readBody(req);
-      const { password } = JSON.parse(body);
-      if (APP_PASSWORD && password !== APP_PASSWORD) {
+      const { username, password } = JSON.parse(body);
+      const user = checkUser(username, password);
+      if (!user) {
         return jsonResponse(res, 401, { ok: false });
       }
-      return jsonResponse(res, 200, { ok: true, appId: PCO_APP_ID, secret: PCO_SECRET });
+      return jsonResponse(res, 200, { ok: true, user, appId: PCO_APP_ID, secret: PCO_SECRET });
     } catch (e) {
       console.warn('POST /auth error:', e);
       return jsonResponse(res, 500, { ok: false, error: e.message });
     }
+  }
+
+  // ── GET /users — list available accounts (names only) ───────────────────
+  if (pathname === '/users' && method === 'GET') {
+    return jsonResponse(res, 200, { users: USERS });
   }
 
   // ── GET /pco ────────────────────────────────────────────────────────────
@@ -620,6 +719,36 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.warn('DELETE /inventory/delete error:', e);
       return jsonResponse(res, e.message === 'Not found' ? 404 : 500, { error: e.message });
+    }
+  }
+
+  // ── GET /userdata?user=Name ─────────────────────────────────────────────
+  if (pathname === '/userdata' && method === 'GET') {
+    try {
+      const username = parsed.query.user;
+      if (!USERS.find(u => u.toLowerCase() === String(username||'').toLowerCase())) {
+        return jsonResponse(res, 400, { error: 'Unknown user' });
+      }
+      return jsonResponse(res, 200, await userDataRead(username));
+    } catch (e) {
+      console.warn('GET /userdata error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── POST /userdata/save  body: {user, data} ─────────────────────────────
+  if (pathname === '/userdata/save' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { user, data } = JSON.parse(body);
+      if (!USERS.find(u => u.toLowerCase() === String(user||'').toLowerCase())) {
+        return jsonResponse(res, 400, { error: 'Unknown user' });
+      }
+      await userDataSave(user, data);
+      return jsonResponse(res, 200, { ok: true });
+    } catch (e) {
+      console.warn('POST /userdata/save error:', e);
+      return jsonResponse(res, 500, { error: e.message });
     }
   }
 
