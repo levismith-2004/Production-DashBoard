@@ -234,6 +234,10 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--surface2); transition: all .15s;
 }
 .theme-mode-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+.account-row { display: flex; align-items: center; gap: 8px; padding: 8px 0;
+  border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.account-row:last-child { border-bottom: none; }
+.account-pass-input { font-size: 12px; }
 /* Home person sub-tabs */
 .home-persons { display: flex; gap: 6px; flex-wrap: wrap; }
 .home-person-tab {
@@ -1558,6 +1562,19 @@ option.primary-person::before { content: '★ '; }
               <button class="btn btn-ghost btn-sm" onclick="resetTheme()">Reset to default</button>
             </div>
           </div>
+
+          <div class="card" id="admin-accounts-card" style="margin-top:16px;display:none">
+            <div style="font-size:13px;font-weight:600;margin-bottom:6px">Accounts <span style="color:var(--accent);font-size:11px">(admin)</span></div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
+              Add or remove users and set their passwords. Note: this is a lightweight internal login, not strong security.
+            </div>
+            <div id="accounts-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border);padding-top:14px">
+              <input id="new-account-name" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="New username"/>
+              <input id="new-account-pass" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="Password (optional)"/>
+              <button class="btn btn-primary btn-sm" onclick="adminAddUser()">+ Add User</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1849,6 +1866,7 @@ document.getElementById('login-pw').addEventListener('keydown', e => {
 });
 
 let currentUser = null;
+let currentUserAdmin = false;
 
 async function doLogin() {
   const username = document.getElementById('login-user').value;
@@ -1865,6 +1883,7 @@ async function doLogin() {
     const data = await res.json();
     if (data.ok) {
       currentUser = data.user;
+      currentUserAdmin = !!data.admin;
       pcoAppId = data.appId || '';
       pcoSecret = data.secret || '';
       pcoAuth = btoa(`${pcoAppId}:${pcoSecret}`);
@@ -1877,6 +1896,7 @@ async function doLogin() {
       initLiveGrid();
       loadPrimaryPeople();
       initSettings();
+      initAdminPanel();
       if (pcoAppId && pcoSecret) {
         await connectPCO();
       }
@@ -5710,6 +5730,88 @@ document.addEventListener('click', (e) => {
 
 // Apply saved theme on page load
 loadTheme();
+
+// ═══════════════════════════════════════════════════════════════════
+//  ADMIN — account management (Settings, admin only)
+// ═══════════════════════════════════════════════════════════════════
+function initAdminPanel() {
+  const card = document.getElementById('admin-accounts-card');
+  if (!card) return;
+  if (currentUserAdmin) {
+    card.style.display = '';
+    loadAccountsList();
+  } else {
+    card.style.display = 'none';
+  }
+}
+
+async function loadAccountsList() {
+  const list = document.getElementById('accounts-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--muted);font-size:13px">Loading…</div>';
+  try {
+    const res = await fetch('/accounts?admin=' + encodeURIComponent(currentUser));
+    const data = await res.json();
+    if (!data.accounts) { list.innerHTML = '<div style="color:var(--red);font-size:13px">Could not load accounts.</div>'; return; }
+    list.innerHTML = data.accounts.map(a => `
+      <div class="account-row">
+        <div style="flex:1">
+          <span style="font-weight:600">${esc(a.name)}</span>
+          ${a.admin ? '<span style="color:var(--accent);font-size:11px;margin-left:6px">admin</span>' : ''}
+          <span style="color:var(--muted2);font-size:11px;margin-left:6px">${a.hasPassword ? '• password set' : '• no password'}</span>
+        </div>
+        <input class="settings-input account-pass-input" style="width:130px" type="text" placeholder="New password" id="pass-${esc(a.name)}"/>
+        <button class="btn btn-ghost btn-sm" onclick="adminSetPass('${esc(a.name)}')">Set</button>
+        ${a.name.toLowerCase() === 'levi' ? '' : `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="adminRemoveUser('${esc(a.name)}')">✕</button>`}
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = '<div style="color:var(--red);font-size:13px">Error loading accounts.</div>';
+  }
+}
+
+async function adminManage(payload) {
+  payload.admin = currentUser;
+  const res = await fetch('/accounts/manage', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!data.ok) { toast(data.error || 'Action failed.', 'error'); return false; }
+  return true;
+}
+
+async function adminAddUser() {
+  const name = document.getElementById('new-account-name').value.trim();
+  const pass = document.getElementById('new-account-pass').value;
+  if (!name) { toast('Enter a username.', 'error'); return; }
+  if (await adminManage({ action: 'add', name })) {
+    if (pass) await adminManage({ action: 'setpass', name, password: pass });
+    document.getElementById('new-account-name').value = '';
+    document.getElementById('new-account-pass').value = '';
+    toast(name + ' added.', 'success');
+    loadAccountsList();
+  }
+}
+
+async function adminRemoveUser(name) {
+  if (!confirm(`Remove account "${name}"? Their personal layouts will remain in storage but they won't be able to log in.`)) return;
+  if (await adminManage({ action: 'remove', name })) {
+    toast(name + ' removed.', 'success');
+    loadAccountsList();
+  }
+}
+
+async function adminSetPass(name) {
+  const input = document.getElementById('pass-' + name);
+  const pass = input ? input.value : '';
+  if (!pass) { toast('Enter a password.', 'error'); return; }
+  if (await adminManage({ action: 'setpass', name, password: pass })) {
+    if (input) input.value = '';
+    toast('Password updated for ' + name + '.', 'success');
+    loadAccountsList();
+  }
+}
 </script>
 
 </body>

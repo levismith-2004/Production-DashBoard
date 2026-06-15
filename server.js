@@ -10,25 +10,111 @@ const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const PCO_APP_ID = process.env.PCO_APP_ID || '';
 const PCO_SECRET = process.env.PCO_SECRET || '';
 
-// ── Users ────────────────────────────────────────────────────────────────────
-// Fixed list of accounts. Passwords are read from env vars so they're not in code:
-//   USER_PASS_LEVI, USER_PASS_CALLEN, USER_PASS_GEORGE, USER_PASS_TOM
-// If an env var is unset, that user falls back to APP_PASSWORD (or any password).
-const USERS = ['Levi', 'Callen', 'George', 'Tom'];
+// ── Users / Accounts ──────────────────────────────────────────────────────────
+// Accounts are stored in the data repo at users/_accounts.json:
+//   { "levi": {"name":"Levi","hash":"...","salt":"...","admin":true}, ... }
+// Levi is the bootstrap admin. Passwords are salted+hashed (sha256).
+const ACCOUNTS_PATH = 'users/_accounts.json';
+const BOOTSTRAP_ADMIN = 'Levi';
 
-function passwordFor(username) {
-  const key = 'USER_PASS_' + username.toUpperCase();
-  return process.env[key] || APP_PASSWORD || '';
+function hashPassword(password, salt) {
+  return crypto.createHash('sha256').update(salt + ':' + password).digest('hex');
 }
 
-function checkUser(username, password) {
-  // Case-insensitive username match against the fixed list
-  const match = USERS.find(u => u.toLowerCase() === String(username || '').toLowerCase());
-  if (!match) return null;
-  const expected = passwordFor(match);
-  // If no password is configured at all, allow any (convenience for setup)
-  if (!expected) return match;
-  return password === expected ? match : null;
+function newSalt() {
+  return crypto.randomBytes(16).toString('hex');
+}
+
+// Read accounts object from data repo (or local fallback)
+async function accountsRead() {
+  if (githubEnabled()) {
+    try {
+      const result = await httpsRequest({
+        hostname: 'api.github.com',
+        path: `/repos/${GITHUB_REPO}/contents/${ACCOUNTS_PATH}?ref=${GITHUB_BRANCH}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'production-dashboard',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
+      if (result.status === 404) return {};
+      const data = JSON.parse(result.body);
+      return JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+    } catch (e) { return {}; }
+  }
+  try {
+    const lf = path.join(__dirname, '_accounts.json');
+    if (!fs.existsSync(lf)) return {};
+    return JSON.parse(fs.readFileSync(lf, 'utf8'));
+  } catch (e) { return {}; }
+}
+
+async function accountsSave(accounts) {
+  if (githubEnabled()) {
+    const result = await httpsRequest({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${ACCOUNTS_PATH}?ref=${GITHUB_BRANCH}`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'production-dashboard',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+    const sha = result.status === 404 ? null : JSON.parse(result.body).sha;
+    const content = Buffer.from(JSON.stringify(accounts, null, 2)).toString('base64');
+    const body = { message: 'Update accounts', content, branch: GITHUB_BRANCH };
+    if (sha) body.sha = sha;
+    await httpsRequest({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${ACCOUNTS_PATH}`,
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'production-dashboard',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    }, JSON.stringify(body));
+  } else {
+    fs.writeFileSync(path.join(__dirname, '_accounts.json'), JSON.stringify(accounts, null, 2), 'utf8');
+  }
+}
+
+// Ensure the bootstrap admin always exists (so you can never lock yourself out)
+async function ensureBootstrap(accounts) {
+  const key = BOOTSTRAP_ADMIN.toLowerCase();
+  if (!accounts[key]) {
+    accounts[key] = { name: BOOTSTRAP_ADMIN, hash: null, salt: null, admin: true };
+    return true; // changed
+  }
+  accounts[key].admin = true; // admin can never be revoked from bootstrap
+  return false;
+}
+
+// Validate a login. Returns {name, admin} or null.
+async function checkUser(username, password) {
+  const accounts = await accountsRead();
+  await ensureBootstrap(accounts);
+  const key = String(username || '').toLowerCase();
+  const acc = accounts[key];
+  if (!acc) {
+    // Not in accounts file — allow legacy env-var fallback for bootstrap admin only
+    if (key === BOOTSTRAP_ADMIN.toLowerCase()) {
+      const expected = process.env['USER_PASS_' + BOOTSTRAP_ADMIN.toUpperCase()] || APP_PASSWORD || '';
+      if (!expected || password === expected) return { name: BOOTSTRAP_ADMIN, admin: true };
+    }
+    return null;
+  }
+  // If no password set yet, accept any (first-time setup)
+  if (!acc.hash) return { name: acc.name, admin: !!acc.admin };
+  const h = hashPassword(password, acc.salt);
+  return h === acc.hash ? { name: acc.name, admin: !!acc.admin } : null;
 }
 
 // GitHub-backed inventory config (set these in Railway environment variables)
@@ -580,20 +666,90 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       const { username, password } = JSON.parse(body);
-      const user = checkUser(username, password);
+      const user = await checkUser(username, password);
       if (!user) {
         return jsonResponse(res, 401, { ok: false });
       }
-      return jsonResponse(res, 200, { ok: true, user, appId: PCO_APP_ID, secret: PCO_SECRET });
+      return jsonResponse(res, 200, { ok: true, user: user.name, admin: user.admin, appId: PCO_APP_ID, secret: PCO_SECRET });
     } catch (e) {
       console.warn('POST /auth error:', e);
       return jsonResponse(res, 500, { ok: false, error: e.message });
     }
   }
 
-  // ── GET /users — list available accounts (names only) ───────────────────
+  // ── GET /users — list account names (for login dropdown) ─────────────────
   if (pathname === '/users' && method === 'GET') {
-    return jsonResponse(res, 200, { users: USERS });
+    try {
+      const accounts = await accountsRead();
+      await ensureBootstrap(accounts);
+      const users = Object.values(accounts).map(a => a.name);
+      // Always include bootstrap admin even if file is empty
+      if (!users.find(u => u.toLowerCase() === BOOTSTRAP_ADMIN.toLowerCase())) users.unshift(BOOTSTRAP_ADMIN);
+      return jsonResponse(res, 200, { users });
+    } catch (e) {
+      return jsonResponse(res, 200, { users: [BOOTSTRAP_ADMIN] });
+    }
+  }
+
+  // ── GET /accounts?admin=Name — list accounts (admin only) ───────────────
+  if (pathname === '/accounts' && method === 'GET') {
+    try {
+      const requester = parsed.query.admin;
+      const accounts = await accountsRead();
+      await ensureBootstrap(accounts);
+      const reqAcc = accounts[String(requester||'').toLowerCase()];
+      const isAdmin = (String(requester||'').toLowerCase() === BOOTSTRAP_ADMIN.toLowerCase()) || (reqAcc && reqAcc.admin);
+      if (!isAdmin) return jsonResponse(res, 403, { error: 'Not authorised' });
+      // Return names + whether password is set + admin flag (never the hash)
+      const list = Object.values(accounts).map(a => ({
+        name: a.name, hasPassword: !!a.hash, admin: !!a.admin,
+      }));
+      return jsonResponse(res, 200, { accounts: list });
+    } catch (e) {
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── POST /accounts/manage — admin actions ────────────────────────────────
+  //   body: { admin, action: 'add'|'remove'|'setpass'|'setadmin', name, password?, makeAdmin? }
+  if (pathname === '/accounts/manage' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { admin, action, name, password, makeAdmin } = JSON.parse(body);
+      const accounts = await accountsRead();
+      await ensureBootstrap(accounts);
+      const reqAcc = accounts[String(admin||'').toLowerCase()];
+      const isAdmin = (String(admin||'').toLowerCase() === BOOTSTRAP_ADMIN.toLowerCase()) || (reqAcc && reqAcc.admin);
+      if (!isAdmin) return jsonResponse(res, 403, { error: 'Not authorised' });
+
+      const key = String(name||'').trim().toLowerCase();
+      if (!key) return jsonResponse(res, 400, { error: 'Name required' });
+
+      if (action === 'add') {
+        if (accounts[key]) return jsonResponse(res, 400, { error: 'User already exists' });
+        accounts[key] = { name: String(name).trim(), hash: null, salt: null, admin: !!makeAdmin };
+      } else if (action === 'remove') {
+        if (key === BOOTSTRAP_ADMIN.toLowerCase()) return jsonResponse(res, 400, { error: 'Cannot remove the admin account' });
+        delete accounts[key];
+      } else if (action === 'setpass') {
+        if (!accounts[key]) return jsonResponse(res, 404, { error: 'User not found' });
+        const salt = newSalt();
+        accounts[key].salt = salt;
+        accounts[key].hash = hashPassword(password || '', salt);
+      } else if (action === 'setadmin') {
+        if (key === BOOTSTRAP_ADMIN.toLowerCase()) return jsonResponse(res, 400, { error: 'Admin status is locked for the main admin' });
+        if (!accounts[key]) return jsonResponse(res, 404, { error: 'User not found' });
+        accounts[key].admin = !!makeAdmin;
+      } else {
+        return jsonResponse(res, 400, { error: 'Unknown action' });
+      }
+
+      await accountsSave(accounts);
+      return jsonResponse(res, 200, { ok: true });
+    } catch (e) {
+      console.warn('POST /accounts/manage error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
   }
 
   // ── GET /pco ────────────────────────────────────────────────────────────
@@ -726,9 +882,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/userdata' && method === 'GET') {
     try {
       const username = parsed.query.user;
-      if (!USERS.find(u => u.toLowerCase() === String(username||'').toLowerCase())) {
-        return jsonResponse(res, 400, { error: 'Unknown user' });
-      }
+      if (!username) return jsonResponse(res, 400, { error: 'Unknown user' });
       return jsonResponse(res, 200, await userDataRead(username));
     } catch (e) {
       console.warn('GET /userdata error:', e);
@@ -741,9 +895,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       const { user, data } = JSON.parse(body);
-      if (!USERS.find(u => u.toLowerCase() === String(user||'').toLowerCase())) {
-        return jsonResponse(res, 400, { error: 'Unknown user' });
-      }
+      if (!user) return jsonResponse(res, 400, { error: 'Unknown user' });
       await userDataSave(user, data);
       return jsonResponse(res, 200, { ok: true });
     } catch (e) {
