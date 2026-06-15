@@ -7,6 +7,7 @@ const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const PCO_APP_ID = process.env.PCO_APP_ID || '';
 const PCO_SECRET = process.env.PCO_SECRET || '';
 
@@ -97,20 +98,31 @@ async function ensureBootstrap(accounts) {
   return false;
 }
 
+// The global admin's password comes ONLY from Railway, never the panel.
+// Priority: ADMIN_PASSWORD, then USER_PASS_LEVI, then APP_PASSWORD.
+function adminMasterPassword() {
+  return ADMIN_PASSWORD || process.env['USER_PASS_' + BOOTSTRAP_ADMIN.toUpperCase()] || APP_PASSWORD || '';
+}
+
 // Validate a login. Returns {name, admin} or null.
 async function checkUser(username, password) {
   const accounts = await accountsRead();
   await ensureBootstrap(accounts);
   const key = String(username || '').toLowerCase();
-  const acc = accounts[key];
-  if (!acc) {
-    // Not in accounts file — allow legacy env-var fallback for bootstrap admin only
-    if (key === BOOTSTRAP_ADMIN.toLowerCase()) {
-      const expected = process.env['USER_PASS_' + BOOTSTRAP_ADMIN.toUpperCase()] || APP_PASSWORD || '';
-      if (!expected || password === expected) return { name: BOOTSTRAP_ADMIN, admin: true };
+
+  // Global admin (Levi): password is controlled entirely by Railway env vars.
+  // This always works and can never be locked out or overridden by the panel.
+  if (key === BOOTSTRAP_ADMIN.toLowerCase()) {
+    const master = adminMasterPassword();
+    // If no env var is set at all, allow any password (first-run convenience)
+    if (!master || password === master) {
+      return { name: BOOTSTRAP_ADMIN, admin: true };
     }
-    return null;
+    return null; // wrong admin password
   }
+
+  const acc = accounts[key];
+  if (!acc) return null;
   // If no password set yet, accept any (first-time setup)
   if (!acc.hash) return { name: acc.name, admin: !!acc.admin };
   const h = hashPassword(password, acc.salt);
@@ -732,6 +744,9 @@ const server = http.createServer(async (req, res) => {
         if (key === BOOTSTRAP_ADMIN.toLowerCase()) return jsonResponse(res, 400, { error: 'Cannot remove the admin account' });
         delete accounts[key];
       } else if (action === 'setpass') {
+        if (key === BOOTSTRAP_ADMIN.toLowerCase()) {
+          return jsonResponse(res, 400, { error: 'The admin password is set via the Railway ADMIN_PASSWORD variable, not here.' });
+        }
         if (!accounts[key]) return jsonResponse(res, 404, { error: 'User not found' });
         const salt = newSalt();
         accounts[key].salt = salt;

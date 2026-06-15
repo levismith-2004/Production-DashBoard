@@ -5768,18 +5768,24 @@ async function loadAccountsList() {
     const res = await fetch('/accounts?admin=' + encodeURIComponent(currentUser));
     const data = await res.json();
     if (!data.accounts) { list.innerHTML = '<div style="color:var(--red);font-size:13px">Could not load accounts.</div>'; return; }
-    list.innerHTML = data.accounts.map(a => `
+    list.innerHTML = data.accounts.map(a => {
+      const isAdmin = a.name.toLowerCase() === 'levi';
+      return `
       <div class="account-row">
         <div style="flex:1">
           <span style="font-weight:600">${esc(a.name)}</span>
           ${a.admin ? '<span style="color:var(--accent);font-size:11px;margin-left:6px">admin</span>' : ''}
-          <span style="color:var(--muted2);font-size:11px;margin-left:6px">${a.hasPassword ? '• password set' : '• no password'}</span>
+          ${isAdmin
+            ? '<span style="color:var(--muted2);font-size:11px;margin-left:6px">• password via Railway</span>'
+            : `<span style="color:var(--muted2);font-size:11px;margin-left:6px">${a.hasPassword ? '• password set' : '• no password'}</span>`}
         </div>
-        <input class="settings-input account-pass-input" style="width:130px" type="text" placeholder="New password" id="pass-${esc(a.name)}"/>
-        <button class="btn btn-ghost btn-sm" onclick="adminSetPass('${esc(a.name)}')">Set</button>
-        ${a.name.toLowerCase() === 'levi' ? '' : `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="adminRemoveUser('${esc(a.name)}')">✕</button>`}
-      </div>
-    `).join('');
+        ${isAdmin ? '' : `
+          <input class="settings-input account-pass-input" style="width:130px" type="text" placeholder="New password" id="pass-${esc(a.name)}"/>
+          <button class="btn btn-ghost btn-sm" onclick="adminSetPass('${esc(a.name)}')">Set</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="adminRemoveUser('${esc(a.name)}')">✕</button>
+        `}
+      </div>`;
+    }).join('');
   } catch (e) {
     list.innerHTML = '<div style="color:var(--red);font-size:13px">Error loading accounts.</div>';
   }
