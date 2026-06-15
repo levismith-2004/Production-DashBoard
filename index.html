@@ -1496,85 +1496,97 @@ option.primary-person::before { content: '★ '; }
 
       <!-- ── Settings ──────────────────────────────────────── -->
       <div class="tab-panel" id="panel-settings">
-        <div class="section-header"><div class="section-title">Settings</div></div>
-        <div class="settings-section">
-          <div class="card">
-            <div style="font-size:13px;font-weight:600;margin-bottom:16px">Planning Center Connection</div>
-            <div class="settings-row">
-              <div class="settings-label">App ID</div>
-              <input class="settings-input" id="settings-app-id" type="text" placeholder="app_id"/>
-            </div>
-            <div class="settings-row">
-              <div class="settings-label">Secret / Token</div>
-              <input class="settings-input" id="settings-secret" type="password" placeholder="pco_pat_…"/>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-              <button class="btn btn-primary btn-sm" onclick="connectFromSettings()">Connect</button>
-              <div id="settings-connect-status" style="font-size:12px;color:var(--muted)"></div>
-            </div>
-            <div style="margin-top:14px;font-size:12px;color:var(--muted2)">
-              Credentials are loaded from the server environment (Railway vars).
-              You can override them here for this session.
-            </div>
-          </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <div class="section-title">Settings</div>
+          <button class="btn btn-ghost btn-sm" id="settings-layout-edit-btn" onclick="toggleSettingsLayoutEdit()">✏️ Edit Layout</button>
+        </div>
+        <div class="grid-stack" id="settings-grid">
 
-          <div class="card" style="margin-top:16px">
-            <div style="font-size:13px;font-weight:600;margin-bottom:16px">Primary Roster People</div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:10px">
-              Primary people are preferred in Auto-Roster. Click a name to toggle.
-            </div>
-            <div id="primary-people-list" class="tag-list"></div>
-          </div>
-
-          <div class="card" style="margin-top:16px">
-            <div style="font-size:13px;font-weight:600;margin-bottom:8px">Display</div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
-              Enter fullscreen to hide the browser chrome — useful for a wall display during service. Press Esc or click the button again to exit.
-            </div>
-            <button class="btn btn-primary btn-sm" id="fullscreen-btn" onclick="toggleLiveFullscreen()">⛶ Enter Fullscreen</button>
-          </div>
-
-          <div class="card" style="margin-top:16px">
-            <div style="font-size:13px;font-weight:600;margin-bottom:16px">Appearance</div>
-
-            <div class="settings-row" style="align-items:center">
-              <div class="settings-label">Mode</div>
-              <div class="theme-toggle">
-                <button class="theme-mode-btn" id="mode-dark" onclick="setThemeMode('dark')">Dark</button>
-                <button class="theme-mode-btn" id="mode-light" onclick="setThemeMode('light')">Light</button>
+          <div class="grid-stack-item" gs-x="0" gs-y="0" gs-w="6" gs-h="5" gs-id="set-pco">
+            <div class="grid-stack-item-content card">
+              <div style="font-size:13px;font-weight:600;margin-bottom:16px">Planning Center Connection</div>
+              <div class="settings-row">
+                <div class="settings-label">App ID</div>
+                <input class="settings-input" id="settings-app-id" type="text" placeholder="app_id"/>
+              </div>
+              <div class="settings-row">
+                <div class="settings-label">Secret / Token</div>
+                <input class="settings-input" id="settings-secret" type="password" placeholder="pco_pat_…"/>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                <button class="btn btn-primary btn-sm" onclick="connectFromSettings()">Connect</button>
+                <div id="settings-connect-status" style="font-size:12px;color:var(--muted)"></div>
+              </div>
+              <div style="margin-top:14px;font-size:12px;color:var(--muted2)">
+                Credentials are loaded from the server environment (Railway vars).
+                You can override them here for this session.
               </div>
             </div>
+          </div>
 
-            <div class="settings-row" style="align-items:center;margin-top:14px">
-              <div class="settings-label">Background</div>
-              <input type="color" class="color-input" id="color-bg" onchange="onColorChange('bg', this.value)"/>
-            </div>
-            <div class="settings-row" style="align-items:center">
-              <div class="settings-label">Surface</div>
-              <input type="color" class="color-input" id="color-surface" onchange="onColorChange('surface', this.value)"/>
-            </div>
-            <div class="settings-row" style="align-items:center">
-              <div class="settings-label">Accent</div>
-              <input type="color" class="color-input" id="color-accent" onchange="onColorChange('accent', this.value)"/>
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:16px">
-              <button class="btn btn-ghost btn-sm" onclick="resetTheme()">Reset to default</button>
+          <div class="grid-stack-item" gs-x="6" gs-y="0" gs-w="6" gs-h="5" gs-id="set-people">
+            <div class="grid-stack-item-content card">
+              <div style="font-size:13px;font-weight:600;margin-bottom:16px">Primary Roster People</div>
+              <div style="font-size:13px;color:var(--muted);margin-bottom:10px">
+                Primary people are preferred in Auto-Roster. Click a name to toggle.
+              </div>
+              <div id="primary-people-list" class="tag-list" style="overflow-y:auto;flex:1;min-height:0"></div>
             </div>
           </div>
 
-          <div class="card" id="admin-accounts-card" style="margin-top:16px;display:none">
-            <div style="font-size:13px;font-weight:600;margin-bottom:6px">Accounts <span style="color:var(--accent);font-size:11px">(admin)</span></div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
-              Add or remove users and set their passwords. Note: this is a lightweight internal login, not strong security.
-            </div>
-            <div id="accounts-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border);padding-top:14px">
-              <input id="new-account-name" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="New username"/>
-              <input id="new-account-pass" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="Password (optional)"/>
-              <button class="btn btn-primary btn-sm" onclick="adminAddUser()">+ Add User</button>
+          <div class="grid-stack-item" gs-x="0" gs-y="5" gs-w="4" gs-h="3" gs-id="set-display">
+            <div class="grid-stack-item-content card">
+              <div style="font-size:13px;font-weight:600;margin-bottom:8px">Display</div>
+              <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
+                Enter fullscreen to hide the browser chrome — useful for a wall display during service. Press Esc or click the button again to exit.
+              </div>
+              <button class="btn btn-primary btn-sm" id="fullscreen-btn" onclick="toggleLiveFullscreen()">⛶ Enter Fullscreen</button>
             </div>
           </div>
+
+          <div class="grid-stack-item" gs-x="4" gs-y="5" gs-w="8" gs-h="6" gs-id="set-appearance">
+            <div class="grid-stack-item-content card">
+              <div style="font-size:13px;font-weight:600;margin-bottom:16px">Appearance</div>
+              <div class="settings-row" style="align-items:center">
+                <div class="settings-label">Mode</div>
+                <div class="theme-toggle">
+                  <button class="theme-mode-btn" id="mode-dark" onclick="setThemeMode('dark')">Dark</button>
+                  <button class="theme-mode-btn" id="mode-light" onclick="setThemeMode('light')">Light</button>
+                </div>
+              </div>
+              <div class="settings-row" style="align-items:center;margin-top:14px">
+                <div class="settings-label">Background</div>
+                <input type="color" class="color-input" id="color-bg" onchange="onColorChange('bg', this.value)"/>
+              </div>
+              <div class="settings-row" style="align-items:center">
+                <div class="settings-label">Surface</div>
+                <input type="color" class="color-input" id="color-surface" onchange="onColorChange('surface', this.value)"/>
+              </div>
+              <div class="settings-row" style="align-items:center">
+                <div class="settings-label">Accent</div>
+                <input type="color" class="color-input" id="color-accent" onchange="onColorChange('accent', this.value)"/>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="btn btn-ghost btn-sm" onclick="resetTheme()">Reset to default</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-stack-item" gs-x="0" gs-y="11" gs-w="12" gs-h="6" gs-id="set-accounts">
+            <div class="grid-stack-item-content card" id="admin-accounts-card" style="display:none">
+              <div style="font-size:13px;font-weight:600;margin-bottom:6px">Accounts <span style="color:var(--accent);font-size:11px">(admin)</span></div>
+              <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
+                Add or remove users and set their passwords. Note: this is a lightweight internal login, not strong security.
+              </div>
+              <div id="accounts-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;overflow-y:auto;flex:1;min-height:0"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border);padding-top:14px">
+                <input id="new-account-name" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="New username"/>
+                <input id="new-account-pass" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="Password (optional)"/>
+                <button class="btn btn-primary btn-sm" onclick="adminAddUser()">+ Add User</button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -1894,6 +1906,7 @@ async function doLogin() {
       startClock();
       initHomeGrid();
       initLiveGrid();
+      initSettingsGrid();
       loadPrimaryPeople();
       initSettings();
       initAdminPanel();
@@ -2660,6 +2673,62 @@ function removeLiveWidget(id) {
 function refreshLive() {
   loadLiveLayout();
   toast('Live dashboard refreshed.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SETTINGS DASHBOARD — movable cards (per-user, saved)
+// ═══════════════════════════════════════════════════════════════════
+let settingsGrid = null;
+let settingsLayoutEditing = false;
+
+function initSettingsGrid() {
+  if (settingsGrid || typeof GridStack === 'undefined') return;
+  settingsGrid = GridStack.init({
+    column: 12, cellHeight: 64, margin: 8, marginUnit: 'px',
+    disableDrag: true, disableResize: true, float: true,
+    columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
+  }, '#settings-grid');
+  loadSettingsLayout();
+}
+
+function toggleSettingsLayoutEdit() {
+  if (!settingsGrid) return;
+  settingsLayoutEditing = !settingsLayoutEditing;
+  settingsGrid.enableMove(settingsLayoutEditing);
+  settingsGrid.enableResize(settingsLayoutEditing);
+  document.getElementById('settings-grid').classList.toggle('editing', settingsLayoutEditing);
+  const btn = document.getElementById('settings-layout-edit-btn');
+  if (settingsLayoutEditing) {
+    btn.textContent = '✓ Done'; btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+  } else {
+    btn.textContent = '✏️ Edit Layout'; btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost');
+    saveSettingsLayout();
+  }
+}
+
+function saveSettingsLayout() {
+  if (!settingsGrid) return;
+  const layout = settingsGrid.engine.nodes.map(n => ({
+    id: n.el.getAttribute('gs-id'), x: n.x, y: n.y, w: n.w, h: n.h,
+  }));
+  userData.settingslayout = userData.settingslayout || {};
+  userData.settingslayout[window.innerWidth <= 768 ? 'mobile' : 'desktop'] = layout;
+  saveUserData();
+  toast('Settings layout saved.', 'success');
+}
+
+function loadSettingsLayout() {
+  if (!settingsGrid) return;
+  const key = window.innerWidth <= 768 ? 'mobile' : 'desktop';
+  const layout = (userData.settingslayout && userData.settingslayout[key]) || null;
+  if (!Array.isArray(layout) || !layout.length) return; // keep default positions
+  settingsGrid.batchUpdate();
+  layout.forEach(node => {
+    if (!node.id) return;
+    const el = document.querySelector(`#settings-grid .grid-stack-item[gs-id="${node.id}"]`);
+    if (el) settingsGrid.update(el, { x: node.x, y: node.y, w: node.w, h: node.h });
+  });
+  settingsGrid.commit();
 }
 
 // ── Fullscreen (whole app) ─────────────────────────────────────────
@@ -4528,6 +4597,9 @@ function switchTab(tabId) {
     // Grid was likely init'd while hidden — nudge it to recalc and refresh data
     setTimeout(() => { try { liveGrid.onParentResize(); } catch(e){} }, 50);
   }
+  if (tabId === 'settings' && settingsGrid) {
+    setTimeout(() => { try { settingsGrid.onParentResize(); } catch(e){} }, 50);
+  }
   if (tabId === 'people' && !statsCache['6']) { /* auto-load on first visit */ }
 }
 
@@ -5751,12 +5823,22 @@ loadTheme();
 // ═══════════════════════════════════════════════════════════════════
 function initAdminPanel() {
   const card = document.getElementById('admin-accounts-card');
+  const gridItem = document.querySelector('#settings-grid .grid-stack-item[gs-id="set-accounts"]');
   if (!card) return;
   if (currentUserAdmin) {
     card.style.display = '';
+    if (gridItem && settingsGrid) {
+      gridItem.style.display = '';
+      settingsGrid.makeWidget(gridItem);
+    }
     loadAccountsList();
   } else {
     card.style.display = 'none';
+    // Remove the accounts widget from the grid entirely for non-admins
+    if (gridItem && settingsGrid) {
+      settingsGrid.removeWidget(gridItem, false);
+      gridItem.style.display = 'none';
+    }
   }
 }
 
