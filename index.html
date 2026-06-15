@@ -1946,6 +1946,21 @@ function saveUserData() {
   }, 600);
 }
 
+// Populate user dropdown on the login screen
+async function populateLoginUsers() {
+  try {
+    const res = await fetch('/users');
+    const data = await res.json();
+    const sel = document.getElementById('login-user');
+    if (sel && data.users) {
+      sel.innerHTML = '<option value="">— Select user —</option>' +
+        data.users.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+      const last = localStorage.getItem('last-user');
+      if (last && data.users.includes(last)) sel.value = last;
+    }
+  } catch (e) { console.warn('populateLoginUsers error:', e); }
+}
+
 // Populate the login users when the page loads
 populateLoginUsers();
 
