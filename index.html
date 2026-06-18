@@ -2,9 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <title>Production Dashboard</title>
+<!-- PWA -->
+<meta name="theme-color" content="#0A0E17"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Prod Dash"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icon-192.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/12.3.3/gridstack.min.css"/>
@@ -1069,6 +1077,12 @@ option.primary-person::before { content: '★ '; }
 </style>
 </head>
 <body>
+
+<!-- iOS install hint -->
+<div id="ios-install-hint" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:var(--surface);border-top:1px solid var(--accent);padding:14px 16px;align-items:center;gap:12px;font-size:13px;color:var(--text)">
+  <div style="flex:1">Install this app: tap <strong>Share</strong> then <strong>Add to Home Screen</strong>.</div>
+  <button class="btn btn-ghost btn-sm" onclick="dismissIosHint()">Got it</button>
+</div>
 
 <!-- ── Login ──────────────────────────────────────────────────── -->
 <div id="login-screen">
@@ -5817,6 +5831,32 @@ document.addEventListener('click', (e) => {
 
 // Apply saved theme on page load
 loadTheme();
+
+// ── PWA: register service worker ───────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
+  });
+}
+
+// iPhone Safari install hint (shown once, only on iOS Safari, not already installed)
+function maybeShowIosInstallHint() {
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
+  const standalone = window.navigator.standalone === true;
+  if (isIos && isSafari && !standalone && !localStorage.getItem('ios-install-hint-seen')) {
+    setTimeout(() => {
+      const bar = document.getElementById('ios-install-hint');
+      if (bar) bar.style.display = 'flex';
+    }, 2000);
+  }
+}
+function dismissIosHint() {
+  localStorage.setItem('ios-install-hint-seen', '1');
+  const bar = document.getElementById('ios-install-hint');
+  if (bar) bar.style.display = 'none';
+}
+maybeShowIosInstallHint();
 
 // ═══════════════════════════════════════════════════════════════════
 //  ADMIN — account management (Settings, admin only)

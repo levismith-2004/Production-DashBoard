@@ -1049,6 +1049,24 @@ const server = http.createServer(async (req, res) => {
     return res.end('// no local config');
   }
 
+  // ── PWA static files ────────────────────────────────────────────────────
+  const STATIC_FILES = {
+    '/manifest.json': 'application/manifest+json',
+    '/sw.js': 'application/javascript',
+    '/icon-192.png': 'image/png',
+    '/icon-512.png': 'image/png',
+  };
+  if (STATIC_FILES[pathname] && method === 'GET') {
+    const fp = path.join(__dirname, pathname.replace(/^\//, ''));
+    if (fs.existsSync(fp)) {
+      // sw.js must not be cached by the browser, so updates are picked up
+      const headers = { 'Content-Type': STATIC_FILES[pathname] };
+      if (pathname === '/sw.js') headers['Cache-Control'] = 'no-cache';
+      res.writeHead(200, headers);
+      return res.end(fs.readFileSync(fp));
+    }
+  }
+
   // ── Fallthrough → index.html ────────────────────────────────────────────
   const htmlPath = path.join(__dirname, 'index.html');
   if (fs.existsSync(htmlPath)) {
