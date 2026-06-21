@@ -4,7 +4,7 @@
 //
 // TO FORCE EVERYONE ONTO A FRESH COPY: bump CACHE_VERSION below (e.g. v2 → v3).
 // Old caches are deleted on activate.
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = 'prod-dash-' + CACHE_VERSION;
 
 // Install immediately, don't wait for old tabs to close

@@ -4849,11 +4849,15 @@ async function loadVolunteerStats() {
   };
   showProgress('Loading plans…');
 
-  // Date range
+  // Date range — only count up to TODAY (ignore future rostered dates)
   const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
   const since = new Date(now);
   since.setMonth(since.getMonth() - months);
   const sinceStr = since.toISOString().slice(0, 10);
+
+  // Production position names — used to ignore other teams' roles on the same plan
+  const prodPosNames = new Set(teamPositions.map(p => p.name));
 
   // Only scan Sunday AM + Sunday PM — where production team actually serves
   const SCAN_ST_IDS = ['288093', '288103'].filter(id => serviceTypes.some(s => s.id === id));
@@ -4883,6 +4887,8 @@ async function loadVolunteerStats() {
         let done = false;
         for (const plan of plans) {
           const dateStr = (plan.attributes.sort_date || '').slice(0, 10);
+          // Skip future-dated plans entirely
+          if (dateStr > todayStr) continue;
           if (dateStr < sinceStr) { done = true; break; }
           allPlansInRange.push({ plan, stId });
         }
@@ -4915,11 +4921,14 @@ async function loadVolunteerStats() {
         (mData.data || []).forEach(m => {
           const pid = m.relationships.person.data.id;
           if (!personMap[pid]) return;
+          // Only count roles in production positions (ignore other teams on the same plan)
+          const posName = m.attributes.team_position_name || '';
+          if (!prodPosNames.has(posName)) return;
           const dateStr = (plan.attributes.sort_date || '').slice(0, 10);
           const status = m.attributes.status;
           personMap[pid].services.push({
             date: dateStr, stId, planId: plan.id,
-            position: m.attributes.team_position_name || '', status,
+            position: posName, status,
           });
           if (status === 'C') personMap[pid].confirmed++;
           else if (status === 'D') personMap[pid].declined++;
@@ -5835,7 +5844,19 @@ loadTheme();
 // ── PWA: register service worker ───────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      // Check for updates whenever the app regains focus
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update();
+      });
+      // When a new SW takes control, reload once to get fresh code
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    }).catch(e => console.warn('SW registration failed:', e));
   });
 }
 
