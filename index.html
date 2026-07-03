@@ -288,6 +288,14 @@ a { color: var(--accent); text-decoration: none; }
 }
 .w-clock-display .secs, #clock-display .secs { font-size: 48px; color: var(--muted); }
 .w-clock-date, #clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
+.clock-format-btn {
+  position: absolute; top: 8px; right: 8px; font-family: var(--mono);
+  font-size: 11px; padding: 3px 8px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--muted); cursor: pointer; transition: all .15s; z-index: 2;
+}
+.clock-format-btn:hover { color: var(--accent); border-color: var(--accent); }
+.w-clock-ampm { font-size: 24px; color: var(--muted); font-family: var(--mono); }
 .mini-cal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; font-size: 13px; font-weight: 600;
@@ -1089,10 +1097,7 @@ option.primary-person::before { content: '★ '; }
   <div class="login-card">
     <div class="login-logo">🎛️</div>
     <h1>Production Dashboard</h1>
-    <p>Select your account and sign in</p>
-    <select id="login-user" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 12px;border-radius:var(--radius-sm);outline:none;font-size:14px;margin-bottom:10px">
-      <option value="">— Select user —</option>
-    </select>
+    <p>Enter the password to continue</p>
     <input type="password" id="login-pw" placeholder="Password" autocomplete="current-password"/>
     <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
     <div class="login-error" id="login-error"></div>
@@ -1110,7 +1115,6 @@ option.primary-person::before { content: '★ '; }
     <div id="tab-bar">
       <button class="tab-btn active" onclick="switchTab('home')" data-tab="home">Home</button>
       <button class="tab-btn" onclick="switchTab('live')" data-tab="live">Live</button>
-      <button class="tab-btn" onclick="switchTab('departments')" data-tab="departments">Departments</button>
       <button class="tab-btn" onclick="switchTab('calendar')" data-tab="calendar">Calendar</button>
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
       <button class="tab-btn" onclick="switchTab('people')" data-tab="people">People</button>
@@ -1183,10 +1187,21 @@ option.primary-person::before { content: '★ '; }
         </div>
       </template>
 
+      <template id="tpl-departments">
+        <div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;height:100%">
+          <div>
+            <div class="section-sub" style="margin-bottom:4px;font-size:14px">DEPARTMENTS</div>
+            <div style="font-size:14px;color:var(--muted)">View production departments</div>
+          </div>
+          <button class="btn btn-primary" onclick="switchTab('departments')">Open →</button>
+        </div>
+      </template>
+
       <template id="tpl-clock">
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%;position:relative">
+          <button class="clock-format-btn" data-act="clock-format" title="Toggle 12/24 hour">12h</button>
           <div class="w-clock-display clock-display-style">
-            <span class="w-clock-hm">00:00</span><span class="secs">:<span class="w-clock-s">00</span></span>
+            <span class="w-clock-hm">00:00</span><span class="secs">:<span class="w-clock-s">00</span></span><span class="w-clock-ampm clock-ampm-style"></span>
           </div>
           <div class="w-clock-date clock-date-style">—</div>
         </div>
@@ -1891,31 +1906,29 @@ document.getElementById('login-pw').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
 });
 
-let currentUser = null;
+// Everyone shares one account. Data is stored under this fixed name.
+const SHARED_ACCOUNT = 'shared';
+let currentUser = SHARED_ACCOUNT;
 let currentUserAdmin = false;
 
 async function doLogin() {
-  const username = document.getElementById('login-user').value;
   const pw = document.getElementById('login-pw').value;
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
-  if (!username) { errEl.textContent = 'Please select a user.'; return; }
   try {
     const res = await fetch('/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password: pw })
+      body: JSON.stringify({ password: pw })
     });
     const data = await res.json();
     if (data.ok) {
-      currentUser = data.user;
-      currentUserAdmin = !!data.admin;
       pcoAppId = data.appId || '';
       pcoSecret = data.secret || '';
       pcoAuth = btoa(`${pcoAppId}:${pcoSecret}`);
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').classList.add('visible');
-      // Load this user's saved data (theme + layouts) before building
+      // Load shared saved data (theme + layouts) before building
       await loadUserData();
       startClock();
       initHomeGrid();
@@ -1923,14 +1936,13 @@ async function doLogin() {
       initSettingsGrid();
       loadPrimaryPeople();
       initSettings();
-      initAdminPanel();
       if (pcoAppId && pcoSecret) {
         await connectPCO();
       }
       loadInventory();
       loadAnnouncements();
     } else {
-      errEl.textContent = 'Incorrect username or password.';
+      errEl.textContent = 'Incorrect password.';
     }
   } catch (e) {
     console.warn('Login error:', e);
@@ -1938,21 +1950,19 @@ async function doLogin() {
   }
 }
 
-// ── Per-user data (theme + home layouts) ───────────────────────────
+// ── Shared data (theme + home layouts) ─────────────────────────────
 let userData = { theme: null, homelayout: {} };
 
 async function loadUserData() {
-  if (!currentUser) return;
-  localStorage.setItem('last-user', currentUser);
   try {
-    const res = await fetch('/userdata?user=' + encodeURIComponent(currentUser));
+    const res = await fetch('/userdata?user=' + encodeURIComponent(SHARED_ACCOUNT));
     const data = await res.json();
-    userData = { theme: data.theme || null, homelayout: data.homelayout || {} };
+    userData = { theme: data.theme || null, homelayout: data.homelayout || {}, settingslayout: data.settingslayout || {} };
   } catch (e) {
     console.warn('loadUserData error:', e);
     userData = { theme: null, homelayout: {} };
   }
-  // Apply this user's theme
+  // Apply saved theme
   if (userData.theme) { themeState = userData.theme; }
   applyTheme();
 }
@@ -1973,42 +1983,47 @@ function saveUserData() {
   }, 600);
 }
 
-// Populate user dropdown on the login screen
-async function populateLoginUsers() {
-  try {
-    const res = await fetch('/users');
-    const data = await res.json();
-    const sel = document.getElementById('login-user');
-    if (sel && data.users) {
-      sel.innerHTML = '<option value="">— Select user —</option>' +
-        data.users.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
-      const last = localStorage.getItem('last-user');
-      if (last && data.users.includes(last)) sel.value = last;
-    }
-  } catch (e) { console.warn('populateLoginUsers error:', e); }
-}
-
-// Populate the login users when the page loads
-populateLoginUsers();
 
 
 
 // ═══════════════════════════════════════════════════════════════════
 //  CLOCK
 // ═══════════════════════════════════════════════════════════════════
+// Clock format: '12' or '24' (default 12), remembered per device
+let clockFormat = localStorage.getItem('clock-format') || '12';
+
+function toggleClockFormat() {
+  clockFormat = clockFormat === '12' ? '24' : '12';
+  localStorage.setItem('clock-format', clockFormat);
+  document.querySelectorAll('.clock-format-btn').forEach(b => b.textContent = clockFormat + 'h');
+  // Immediate visual update
+  if (typeof updateClockNow === 'function') updateClockNow();
+}
+
+let updateClockNow = null;
+
 function startClock() {
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const tick = () => {
     const now = new Date();
-    const hh = String(now.getHours()).padStart(2,'0');
+    let h = now.getHours();
+    let ampm = '';
+    if (clockFormat === '12') {
+      ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12; if (h === 0) h = 12;
+    }
+    const hh = clockFormat === '12' ? String(h) : String(h).padStart(2,'0');
     const mm = String(now.getMinutes()).padStart(2,'0');
     const ss = String(now.getSeconds()).padStart(2,'0');
-    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const dateStr = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
     document.querySelectorAll('.w-clock-hm').forEach(el => el.textContent = `${hh}:${mm}`);
     document.querySelectorAll('.w-clock-s').forEach(el => el.textContent = ss);
+    document.querySelectorAll('.w-clock-ampm').forEach(el => el.textContent = ampm ? ' ' + ampm : '');
     document.querySelectorAll('.w-clock-date').forEach(el => el.textContent = dateStr);
+    document.querySelectorAll('.clock-format-btn').forEach(b => b.textContent = clockFormat + 'h');
   };
+  updateClockNow = tick;
   tick();
   clockInterval = setInterval(tick, 1000);
 }
@@ -2226,7 +2241,7 @@ let layoutEditing = false;
 let widgetCounter = 0;
 
 // Home dashboard people (sub-tabs) — each has their own layout
-const HOME_PERSONS = ['Levi', 'Callen', 'George', 'Tom'];
+const HOME_PERSONS = ['Sound', 'Producer', 'Media', 'Lighting'];
 let activePerson = localStorage.getItem('home-active-person') || HOME_PERSONS[0];
 
 function renderPersonTabs() {
@@ -2250,6 +2265,7 @@ function switchHomePerson(person) {
 const WIDGET_LABELS = {
   announcements: 'Flags',
   matrix: 'Roster Matrix',
+  departments: 'Departments',
   clock: 'Clock',
   runsheet: 'Run Sheet',
   cal: 'Calendar',
@@ -2264,7 +2280,7 @@ const WIDGET_LABELS = {
 };
 // Default sizes per type {w, h}
 const WIDGET_SIZES = {
-  announcements: { w: 8, h: 3 }, matrix: { w: 4, h: 2 },
+  announcements: { w: 8, h: 3 }, matrix: { w: 4, h: 2 }, departments: { w: 4, h: 2 },
   clock: { w: 4, h: 4 }, runsheet: { w: 4, h: 2 },
   cal: { w: 4, h: 7 }, week: { w: 4, h: 7 }, gaps: { w: 12, h: 3 },
   liverunsheet: { w: 6, h: 6 }, countdown: { w: 3, h: 3 },
@@ -2338,6 +2354,8 @@ function createWidgetEl(instanceId, type) {
         saveHomeLayout();
       };
       el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } };
+    } else if (act === 'clock-format') {
+      el.onclick = (e) => { e.stopPropagation(); toggleClockFormat(); };
     }
   });
 
@@ -2614,6 +2632,8 @@ function createLiveWidgetEl(instanceId, type) {
     } else if (act === 'section-title') {
       el.onblur = () => { if (liveInstances[instanceId]) liveInstances[instanceId].title = el.textContent; saveLiveLayout(); };
       el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } };
+    } else if (act === 'clock-format') {
+      el.onclick = (e) => { e.stopPropagation(); toggleClockFormat(); };
     }
   });
   return item;
@@ -2702,6 +2722,9 @@ function initSettingsGrid() {
     disableDrag: true, disableResize: true, float: true,
     columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
   }, '#settings-grid');
+  // No accounts system — remove the admin accounts widget entirely
+  const accItem = document.querySelector('#settings-grid .grid-stack-item[gs-id="set-accounts"]');
+  if (accItem) { settingsGrid.removeWidget(accItem, false); accItem.remove(); }
   loadSettingsLayout();
 }
 

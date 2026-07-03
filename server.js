@@ -677,12 +677,11 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/auth' && method === 'POST') {
     try {
       const body = await readBody(req);
-      const { username, password } = JSON.parse(body);
-      const user = await checkUser(username, password);
-      if (!user) {
+      const { password } = JSON.parse(body);
+      if (APP_PASSWORD && password !== APP_PASSWORD) {
         return jsonResponse(res, 401, { ok: false });
       }
-      return jsonResponse(res, 200, { ok: true, user: user.name, admin: user.admin, appId: PCO_APP_ID, secret: PCO_SECRET });
+      return jsonResponse(res, 200, { ok: true, appId: PCO_APP_ID, secret: PCO_SECRET });
     } catch (e) {
       console.warn('POST /auth error:', e);
       return jsonResponse(res, 500, { ok: false, error: e.message });
