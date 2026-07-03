@@ -443,6 +443,22 @@ async function inventoryDelete(id) {
 // ── Announcements CRUD ──────────────────────────────────────────────────────
 
 async function announcementsRead() {
+  if (supabaseEnabled()) {
+    let val = await supabaseGet('announcements');
+    // One-time migration: if Supabase has no announcements yet but GitHub does, copy them over
+    if (val === null && githubEnabled()) {
+      try {
+        const { items } = await githubGetFile(ANNOUNCEMENTS_PATH);
+        if (Array.isArray(items) && items.length) {
+          await supabaseSet('announcements', items);
+          return items;
+        }
+      } catch (e) { /* ignore, start empty */ }
+      await supabaseSet('announcements', []); // mark as migrated (empty)
+      return [];
+    }
+    return Array.isArray(val) ? val : [];
+  }
   if (githubEnabled()) {
     const { items } = await githubGetFile(ANNOUNCEMENTS_PATH);
     return items;
@@ -455,6 +471,12 @@ async function announcementsRead() {
 
 async function announcementsAdd(ann) {
   ann.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  if (supabaseEnabled()) {
+    const items = await announcementsRead();
+    items.unshift(ann);
+    await supabaseSet('announcements', items);
+    return ann;
+  }
   if (githubEnabled()) {
     const { items, sha } = await githubGetFile(ANNOUNCEMENTS_PATH);
     items.unshift(ann);
@@ -469,6 +491,11 @@ async function announcementsAdd(ann) {
 }
 
 async function announcementsDelete(id) {
+  if (supabaseEnabled()) {
+    const items = await announcementsRead();
+    await supabaseSet('announcements', items.filter(a => a.id !== id));
+    return;
+  }
   if (githubEnabled()) {
     const { items, sha } = await githubGetFile(ANNOUNCEMENTS_PATH);
     const filtered = items.filter(a => a.id !== id);
@@ -481,6 +508,14 @@ async function announcementsDelete(id) {
 }
 
 async function announcementsUpdate(id, updates) {
+  if (supabaseEnabled()) {
+    const items = await announcementsRead();
+    const idx = items.findIndex(a => a.id === id);
+    if (idx === -1) throw new Error('Not found');
+    items[idx] = { ...items[idx], ...updates, id };
+    await supabaseSet('announcements', items);
+    return items[idx];
+  }
   if (githubEnabled()) {
     const { items, sha } = await githubGetFile(ANNOUNCEMENTS_PATH);
     const idx = items.findIndex(a => a.id === id);
