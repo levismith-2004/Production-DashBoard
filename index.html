@@ -246,6 +246,19 @@ a { color: var(--accent); text-decoration: none; }
   border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .account-row:last-child { border-bottom: none; }
 .account-pass-input { font-size: 12px; }
+/* Processes tab */
+.process-row {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); margin-bottom: 10px;
+}
+.process-icon {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; color: #fff;
+  background: var(--red); padding: 8px 10px; border-radius: 6px; flex-shrink: 0;
+}
+.process-info { flex: 1; min-width: 0; }
+.process-title { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
+.process-meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
 /* Home person sub-tabs */
 .home-persons { display: flex; gap: 6px; flex-wrap: wrap; }
 .home-person-tab {
@@ -1119,6 +1132,7 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn" onclick="switchTab('inventory')" data-tab="inventory">Inventory</button>
       <button class="tab-btn" onclick="switchTab('people')" data-tab="people">People</button>
       <button class="tab-btn" onclick="switchTab('audio')" data-tab="audio">Audio</button>
+      <button class="tab-btn" onclick="switchTab('processes')" data-tab="processes">Processes</button>
       <div class="tab-spacer"></div>
       <div id="connection-status">
         <div class="status-dot" id="conn-dot"></div>
@@ -1527,6 +1541,18 @@ option.primary-person::before { content: '★ '; }
         </div>
       </div>
 
+      <!-- ── Processes ─────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-processes">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Processes</div>
+            <div class="section-sub">Team procedures and reference documents (PDF)</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openProcessUpload()">+ Upload PDF</button>
+        </div>
+        <div id="processes-list" style="margin-top:16px"><div class="state-msg">Loading…</div></div>
+      </div>
+
       <!-- ── Settings ──────────────────────────────────────── -->
       <div class="tab-panel" id="panel-settings">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
@@ -1682,6 +1708,31 @@ option.primary-person::before { content: '★ '; }
     </div>
     <div class="modal-body">
       <div id="widget-menu-list" class="widget-menu-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Process upload modal ────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="process-upload-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Upload Process Document</div>
+      <button class="btn btn-icon" onclick="closeProcessUpload()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Title</label>
+        <input id="process-title" class="settings-input" type="text" placeholder="e.g. Sound Desk Startup Procedure" style="width:100%"/>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">PDF file</label>
+        <input id="process-file" type="file" accept="application/pdf" style="width:100%;font-size:13px;color:var(--text)"/>
+      </div>
+      <div id="process-upload-status" style="font-size:13px;color:var(--muted);min-height:18px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeProcessUpload()">Cancel</button>
+      <button class="btn btn-primary" id="process-upload-btn" onclick="submitProcessUpload()">Upload</button>
     </div>
   </div>
 </div>
@@ -4719,6 +4770,7 @@ function switchTab(tabId) {
   if (tabId === 'inventory') loadInventory();
   if (tabId === 'calendar') buildFullCalendar();
   if (tabId === 'audio') { loadPatch(); loadSignalFlow(); }
+  if (tabId === 'processes') loadProcesses();
   if (tabId === 'home') { loadAnnouncements(); }
   if (tabId === 'live' && liveGrid) {
     // Grid was likely init'd while hidden — nudge it to recalc and refresh data
@@ -5950,6 +6002,105 @@ document.addEventListener('click', (e) => {
     sfClearSelection();
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  PROCESSES — PDF documents (Supabase Storage)
+// ═══════════════════════════════════════════════════════════════════
+async function loadProcesses() {
+  const list = document.getElementById('processes-list');
+  if (!list) return;
+  list.innerHTML = '<div class="state-msg"><div class="spinner"></div></div>';
+  try {
+    const res = await fetch('/processes');
+    const docs = await res.json();
+    if (!Array.isArray(docs) || !docs.length) {
+      list.innerHTML = '<div class="state-msg">No documents yet. Click "Upload PDF" to add one.</div>';
+      return;
+    }
+    list.innerHTML = docs.map(d => {
+      const dt = d.uploadedAt ? new Date(d.uploadedAt) : null;
+      const dateStr = dt ? `${dt.getDate()}/${dt.getMonth()+1}/${dt.getFullYear()}` : '';
+      return `<div class="process-row">
+        <div class="process-icon">PDF</div>
+        <div class="process-info">
+          <div class="process-title">${esc(d.title || d.filename)}</div>
+          <div class="process-meta">${esc(d.filename)}${dateStr ? ' · ' + dateStr : ''}</div>
+        </div>
+        <a class="btn btn-primary btn-sm" href="${esc(d.url)}" target="_blank" rel="noopener">Open</a>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProcess('${esc(d.id)}')">✕</button>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    console.warn('loadProcesses error:', e);
+    list.innerHTML = '<div class="state-msg" style="color:var(--red)">Could not load documents.</div>';
+  }
+}
+
+function openProcessUpload() {
+  document.getElementById('process-title').value = '';
+  document.getElementById('process-file').value = '';
+  document.getElementById('process-upload-status').textContent = '';
+  document.getElementById('process-upload-modal').classList.remove('hidden');
+}
+function closeProcessUpload() {
+  document.getElementById('process-upload-modal').classList.add('hidden');
+}
+
+async function submitProcessUpload() {
+  const fileInput = document.getElementById('process-file');
+  const title = document.getElementById('process-title').value.trim();
+  const status = document.getElementById('process-upload-status');
+  const btn = document.getElementById('process-upload-btn');
+  const file = fileInput.files[0];
+  if (!file) { status.textContent = 'Please choose a PDF file.'; return; }
+  if (file.type !== 'application/pdf') { status.textContent = 'Only PDF files are allowed.'; return; }
+  if (file.size > 25 * 1024 * 1024) { status.textContent = 'File too large (max 25 MB).'; return; }
+
+  btn.disabled = true;
+  status.textContent = 'Uploading…';
+  try {
+    // Read file as base64
+    const dataBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]); // strip data: prefix
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const res = await fetch('/processes/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || file.name, filename: file.name, dataBase64 }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      closeProcessUpload();
+      toast('Document uploaded.', 'success');
+      loadProcesses();
+    } else {
+      status.textContent = 'Upload failed: ' + (data.error || 'unknown error');
+    }
+  } catch (e) {
+    status.textContent = 'Upload error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteProcess(id) {
+  const ok = await showConfirm('Delete Document', 'Remove this document permanently?', 'Delete', 'btn-danger');
+  if (!ok) return;
+  try {
+    await fetch('/processes/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    toast('Document deleted.', 'success');
+    loadProcesses();
+  } catch (e) {
+    toast('Delete failed.', 'error');
+  }
+}
 
 // Apply saved theme on page load
 loadTheme();

@@ -60,6 +60,53 @@ async function supabaseSet(key, value) {
   throw new Error(`Supabase SET ${key} failed: ${result.status} ${result.body}`);
 }
 
+// ── Supabase Storage (PDF files) ─────────────────────────────────────────────
+// Upload a binary buffer to the storage bucket. Returns the public URL.
+function supabaseUpload(objectPath, buffer, contentType) {
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: SUPABASE_HOST,
+      path: `/storage/v1/object/${SUPABASE_BUCKET}/${encodeURIComponent(objectPath)}`,
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': contentType || 'application/octet-stream',
+        'Content-Length': buffer.length,
+        'x-upsert': 'true',
+      },
+    };
+    const req = https.request(opts, (r) => {
+      let data = '';
+      r.on('data', c => { data += c; });
+      r.on('end', () => {
+        if (r.statusCode >= 200 && r.statusCode < 300) {
+          const publicUrl = `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/${SUPABASE_BUCKET}/${objectPath}`;
+          resolve(publicUrl);
+        } else {
+          reject(new Error(`Upload failed: ${r.statusCode} ${data}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(buffer);
+    req.end();
+  });
+}
+
+// Delete an object from the storage bucket
+async function supabaseDeleteFile(objectPath) {
+  const result = await httpsRequest({
+    hostname: SUPABASE_HOST,
+    path: `/storage/v1/object/${SUPABASE_BUCKET}/${encodeURIComponent(objectPath)}`,
+    method: 'DELETE',
+    headers: supabaseHeaders(),
+  });
+  if (result.status >= 200 && result.status < 300) return true;
+  throw new Error(`Delete failed: ${result.status} ${result.body}`);
+}
+
+
 
 // ── Users / Accounts ──────────────────────────────────────────────────────────
 // Accounts are stored in the data repo at users/_accounts.json:
@@ -721,6 +768,67 @@ const server = http.createServer(async (req, res) => {
       'Access-Control-Allow-Headers': 'Content-Type, x-pco-auth',
     });
     return res.end();
+  }
+
+  // ── GET /processes — list process documents ─────────────────────────────
+  if (pathname === '/processes' && method === 'GET') {
+    try {
+      const list = await supabaseGet('processes');
+      return jsonResponse(res, 200, Array.isArray(list) ? list : []);
+    } catch (e) {
+      console.warn('GET /processes error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── POST /processes/upload  body: {title, filename, dataBase64} ─────────
+  if (pathname === '/processes/upload' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { title, filename, dataBase64 } = JSON.parse(body);
+      if (!dataBase64 || !filename) return jsonResponse(res, 400, { error: 'Missing file' });
+      // Decode base64 → binary
+      const buffer = Buffer.from(dataBase64, 'base64');
+      // Unique object path: timestamp + sanitized filename
+      const safeName = String(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const objectPath = `${Date.now()}_${safeName}`;
+      const publicUrl = await supabaseUpload(objectPath, buffer, 'application/pdf');
+      // Append to the processes list
+      const list = (await supabaseGet('processes')) || [];
+      const entry = {
+        id: 'proc_' + Date.now(),
+        title: title || filename,
+        filename: safeName,
+        objectPath,
+        url: publicUrl,
+        uploadedAt: new Date().toISOString(),
+      };
+      list.unshift(entry);
+      await supabaseSet('processes', list);
+      return jsonResponse(res, 200, { ok: true, entry });
+    } catch (e) {
+      console.warn('POST /processes/upload error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── POST /processes/delete  body: {id} ──────────────────────────────────
+  if (pathname === '/processes/delete' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { id } = JSON.parse(body);
+      const list = (await supabaseGet('processes')) || [];
+      const entry = list.find(p => p.id === id);
+      if (entry && entry.objectPath) {
+        try { await supabaseDeleteFile(entry.objectPath); } catch (e) { /* file may be gone */ }
+      }
+      const newList = list.filter(p => p.id !== id);
+      await supabaseSet('processes', newList);
+      return jsonResponse(res, 200, { ok: true });
+    } catch (e) {
+      console.warn('POST /processes/delete error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
   }
 
   // ── GET /supabase-test — diagnostic: verify Supabase connection ──────────
