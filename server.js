@@ -11,6 +11,56 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const PCO_APP_ID = process.env.PCO_APP_ID || '';
 const PCO_SECRET = process.env.PCO_SECRET || '';
 
+// ── Supabase config (data + file storage) ────────────────────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL || '';        // https://xxxx.supabase.co
+const SUPABASE_KEY = process.env.SUPABASE_KEY || '';        // sb_secret_... (server-side only)
+const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'processes';
+
+function supabaseEnabled() {
+  return !!(SUPABASE_URL && SUPABASE_KEY);
+}
+
+// Parse the Supabase hostname once
+const SUPABASE_HOST = SUPABASE_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+// Generic Supabase REST helper for the app_data key-value table
+function supabaseHeaders(extra) {
+  return Object.assign({
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+  }, extra || {});
+}
+
+// Read one key's value from app_data. Returns parsed value or null.
+async function supabaseGet(key) {
+  const result = await httpsRequest({
+    hostname: SUPABASE_HOST,
+    path: `/rest/v1/app_data?key=eq.${encodeURIComponent(key)}&select=value`,
+    method: 'GET',
+    headers: supabaseHeaders(),
+  });
+  if (result.status >= 200 && result.status < 300) {
+    const rows = JSON.parse(result.body || '[]');
+    return rows.length ? rows[0].value : null;
+  }
+  throw new Error(`Supabase GET ${key} failed: ${result.status} ${result.body}`);
+}
+
+// Upsert one key's value into app_data
+async function supabaseSet(key, value) {
+  const body = JSON.stringify([{ key, value, updated_at: new Date().toISOString() }]);
+  const result = await httpsRequest({
+    hostname: SUPABASE_HOST,
+    path: `/rest/v1/app_data?on_conflict=key`,
+    method: 'POST',
+    headers: supabaseHeaders({ 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+  }, body);
+  if (result.status >= 200 && result.status < 300) return true;
+  throw new Error(`Supabase SET ${key} failed: ${result.status} ${result.body}`);
+}
+
+
 // ── Users / Accounts ──────────────────────────────────────────────────────────
 // Accounts are stored in the data repo at users/_accounts.json:
 //   { "levi": {"name":"Levi","hash":"...","salt":"...","admin":true}, ... }
@@ -671,6 +721,27 @@ const server = http.createServer(async (req, res) => {
       'Access-Control-Allow-Headers': 'Content-Type, x-pco-auth',
     });
     return res.end();
+  }
+
+  // ── GET /supabase-test — diagnostic: verify Supabase connection ──────────
+  if (pathname === '/supabase-test' && method === 'GET') {
+    try {
+      if (!supabaseEnabled()) {
+        return jsonResponse(res, 200, { ok: false, reason: 'Supabase env vars not set' });
+      }
+      // Write a test value, read it back
+      const stamp = new Date().toISOString();
+      await supabaseSet('_connection_test', { hello: 'world', at: stamp });
+      const readBack = await supabaseGet('_connection_test');
+      return jsonResponse(res, 200, {
+        ok: true,
+        wrote: stamp,
+        readBack,
+        match: readBack && readBack.at === stamp,
+      });
+    } catch (e) {
+      return jsonResponse(res, 200, { ok: false, error: e.message });
+    }
   }
 
   // ── POST /auth ─────────────────────────────────────────────────────────
