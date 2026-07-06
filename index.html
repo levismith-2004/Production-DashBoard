@@ -294,6 +294,9 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--surface2); border: 1px solid var(--border2);
   padding: 2px 8px; border-radius: 4px;
 }
+.setlist-file-btn { cursor: pointer; transition: all .15s; }
+.setlist-file-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.setlist-file-btn:disabled { opacity: .6; cursor: default; }
 .setlist-person {
   display: flex; justify-content: space-between; align-items: baseline;
   padding: 6px 0; gap: 10px; border-bottom: 1px solid var(--border);
@@ -6292,10 +6295,11 @@ async function buildSetListService(svc) {
           );
           files = (attData.data || []).map(at => ({
             name: at.attributes.filename || at.attributes.display_name || 'File',
+            id: at.id,
           }));
         } catch (e) { /* no attachments */ }
         const fileTags = files.length
-          ? files.map(f => `<span class="setlist-file">${esc(f.name)}</span>`).join('')
+          ? files.map(f => `<button class="setlist-file setlist-file-btn" onclick="openSongFile('${svc.stId}','${svc.plan.id}','${f.id}',this)">${esc(f.name)}</button>`).join('')
           : '<span style="color:var(--muted2);font-size:11px">no files</span>';
         rows.push(`
           <div class="setlist-song">
@@ -6377,6 +6381,30 @@ async function buildSetListService(svc) {
         ${teamCards}
       </div>
     </div>`;
+}
+
+// Open a song's attached file — asks PCO for a temporary URL, then opens it
+async function openSongFile(stId, planId, attachmentId, btnEl) {
+  const original = btnEl ? btnEl.textContent : '';
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Opening…'; }
+  try {
+    const path = `/services/v2/service_types/${stId}/plans/${planId}/attachments/${attachmentId}/open`;
+    const res = await pcoPost(path, {});
+    // PCO returns the temporary URL in data.attributes.attachment_url
+    const urlOut = res && res.data && res.data.attributes &&
+      (res.data.attributes.attachment_url || res.data.attributes.url);
+    if (urlOut) {
+      window.open(urlOut, '_blank', 'noopener');
+    } else {
+      toast('Could not open file (no URL returned).', 'error');
+      console.warn('open attachment response:', res);
+    }
+  } catch (e) {
+    console.warn('openSongFile error:', e);
+    toast('Could not open file.', 'error');
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = original; }
+  }
 }
 
 // Apply saved theme on page load
