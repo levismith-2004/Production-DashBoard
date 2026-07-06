@@ -261,22 +261,29 @@ a { color: var(--accent); text-decoration: none; }
 .process-meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
 /* Set List tab */
 .setlist-date-heading { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--accent); }
-.setlist-service {
+.setlist-service { margin-bottom: 28px; }
+.setlist-service-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+.setlist-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px; align-items: start;
+}
+.setlist-card {
   background: var(--surface); border: 1px solid var(--border2);
-  border-radius: var(--radius); padding: 18px; margin-bottom: 18px;
+  border-radius: var(--radius); padding: 16px;
 }
-.setlist-service-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
-.setlist-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.setlist-col-heading {
-  font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--muted); margin-bottom: 12px; font-weight: 600;
+.setlist-card-songs { grid-column: span 2; }
+.setlist-card-title {
+  font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
 }
-.setlist-song {
-  padding: 10px 0; border-bottom: 1px solid var(--border);
+.setlist-card-count {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  background: var(--surface2); padding: 1px 7px; border-radius: 10px;
 }
+.setlist-song { padding: 9px 0; border-bottom: 1px solid var(--border); }
 .setlist-song:last-child { border-bottom: none; }
 .setlist-song-main { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-.setlist-song-title { font-size: 15px; font-weight: 500; }
+.setlist-song-title { font-size: 14px; font-weight: 500; }
 .setlist-song-key {
   font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent);
   background: var(--accent-glow); padding: 1px 8px; border-radius: 10px;
@@ -287,17 +294,16 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--surface2); border: 1px solid var(--border2);
   padding: 2px 8px; border-radius: 4px;
 }
-.setlist-team { margin-bottom: 14px; }
-.setlist-team-name {
-  font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text);
-  padding-bottom: 4px; border-bottom: 1px solid var(--border);
+.setlist-person {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; gap: 8px; border-bottom: 1px solid var(--border);
 }
-.setlist-person { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; gap: 8px; }
+.setlist-person:last-child { border-bottom: none; }
 .setlist-person-name { font-size: 13px; }
 .setlist-person-name.confirmed { color: var(--green); }
 .setlist-person-name.declined { color: var(--red); text-decoration: line-through; }
 .setlist-person-name.pending { color: var(--text); }
-.setlist-person-pos { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.setlist-person-pos { font-size: 11px; color: var(--muted); font-family: var(--mono); text-align: right; }
 /* Home person sub-tabs */
 .home-persons { display: flex; gap: 6px; flex-wrap: wrap; }
 .home-person-tab {
@@ -817,7 +823,8 @@ option.primary-person::before { content: '★ '; }
 ══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   :root { --topbar-h: 48px; --mob-nav-h: 72px; }
-  .setlist-columns { grid-template-columns: 1fr; gap: 16px; }
+  .setlist-grid { grid-template-columns: 1fr; }
+  .setlist-card-songs { grid-column: span 1; }
 
   /* ── Bottom nav ── */
   #mob-nav {
@@ -6199,23 +6206,26 @@ async function loadSetList() {
 }
 
 async function buildSetListService(svc) {
-  let songsHtml = '<div style="color:var(--muted);font-size:13px">No songs found.</div>';
-  let teamsHtml = '';
+  // Which teams we care about (match by name, case-insensitive)
+  const WANTED_TEAMS = ['vocals', 'band', 'production'];
+
+  let songCards = '';
+  let teamCards = '';
 
   try {
-    // 1. Songs (items where item_type is Song), with attachments included
+    // 1. Songs
     const itemsData = await pcoGet(
       `/services/v2/service_types/${svc.stId}/plans/${svc.plan.id}/items?per_page=100&include=song,arrangement`
     );
     const items = itemsData.data || [];
     const songs = items.filter(i => (i.attributes.item_type || '').toLowerCase() === 'song');
 
+    let songRows = '<div style="color:var(--muted);font-size:13px">No songs found.</div>';
     if (songs.length) {
       const rows = [];
       for (const s of songs) {
         const a = s.attributes;
         const key = a.key_name || '';
-        // Fetch attachments for this song item
         let files = [];
         try {
           const attData = await pcoGet(
@@ -6223,14 +6233,11 @@ async function buildSetListService(svc) {
           );
           files = (attData.data || []).map(at => ({
             name: at.attributes.filename || at.attributes.display_name || 'File',
-            id: at.id,
           }));
         } catch (e) { /* no attachments */ }
-
         const fileTags = files.length
           ? files.map(f => `<span class="setlist-file">${esc(f.name)}</span>`).join('')
           : '<span style="color:var(--muted2);font-size:11px">no files</span>';
-
         rows.push(`
           <div class="setlist-song">
             <div class="setlist-song-main">
@@ -6240,24 +6247,28 @@ async function buildSetListService(svc) {
             <div class="setlist-song-files">${fileTags}</div>
           </div>`);
       }
-      songsHtml = rows.join('');
+      songRows = rows.join('');
     }
+    songCards = `<div class="setlist-card setlist-card-songs">
+      <div class="setlist-card-title">Songs</div>
+      <div class="setlist-card-body">${songRows}</div>
+    </div>`;
 
-    // 2. Team members grouped by team (Vocals, Band, Production, etc.)
+    // 2. Teams — filter to only Vocals / Band / Production
     const membersData = await pcoGet(
       `/services/v2/service_types/${svc.stId}/plans/${svc.plan.id}/team_members?per_page=100&include=team`
     );
     const members = membersData.data || [];
     const included = membersData.included || [];
-    // Map team id → team name
     const teamNames = {};
     included.filter(x => x.type === 'Team').forEach(t => { teamNames[t.id] = t.attributes.name; });
 
-    // Group members by team name
     const byTeam = {};
     members.forEach(m => {
       const teamId = m.relationships.team && m.relationships.team.data ? m.relationships.team.data.id : null;
-      const teamName = (teamId && teamNames[teamId]) || 'Other';
+      const teamName = (teamId && teamNames[teamId]) || '';
+      // Only keep wanted teams
+      if (!WANTED_TEAMS.includes(teamName.toLowerCase())) return;
       if (!byTeam[teamName]) byTeam[teamName] = [];
       byTeam[teamName].push({
         name: m.attributes.name,
@@ -6266,26 +6277,33 @@ async function buildSetListService(svc) {
       });
     });
 
-    // Preferred order: Vocals, Band, Production, then anything else
+    // Card per team in preferred order
     const order = ['Vocals', 'Band', 'Production'];
     const teamKeys = Object.keys(byTeam).sort((a, b) => {
-      const ia = order.indexOf(a), ib = order.indexOf(b);
+      const ia = order.findIndex(o => o.toLowerCase() === a.toLowerCase());
+      const ib = order.findIndex(o => o.toLowerCase() === b.toLowerCase());
       return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
 
-    teamsHtml = teamKeys.map(tn => {
-      const people = byTeam[tn].map(p => {
-        const stClass = p.status === 'C' ? 'confirmed' : p.status === 'D' ? 'declined' : 'pending';
-        return `<div class="setlist-person">
-          <span class="setlist-person-name ${stClass}">${esc(p.name)}</span>
-          <span class="setlist-person-pos">${esc(p.position || '')}</span>
-        </div>`;
-      }).join('');
-      return `<div class="setlist-team">
-        <div class="setlist-team-name">${esc(tn)}</div>
-        ${people}
+    teamCards = teamKeys.map(tn => {
+      const people = byTeam[tn]
+        .sort((a, b) => (a.position || '').localeCompare(b.position || ''))
+        .map(p => {
+          const stClass = p.status === 'C' ? 'confirmed' : p.status === 'D' ? 'declined' : 'pending';
+          return `<div class="setlist-person">
+            <span class="setlist-person-name ${stClass}">${esc(p.name)}</span>
+            <span class="setlist-person-pos">${esc(p.position || '')}</span>
+          </div>`;
+        }).join('');
+      return `<div class="setlist-card setlist-card-team">
+        <div class="setlist-card-title">${esc(tn)} <span class="setlist-card-count">${byTeam[tn].length}</span></div>
+        <div class="setlist-card-body">${people || '<div style="color:var(--muted);font-size:13px">Nobody rostered.</div>'}</div>
       </div>`;
     }).join('');
+
+    if (!teamCards) {
+      teamCards = '<div class="setlist-card"><div class="setlist-card-body"><div style="color:var(--muted);font-size:13px">No Vocals, Band, or Production team rostered.</div></div></div>';
+    }
 
   } catch (e) {
     console.warn('buildSetListService error:', e);
@@ -6295,15 +6313,9 @@ async function buildSetListService(svc) {
   return `
     <div class="setlist-service">
       <div class="setlist-service-title">${esc(svcLabel)} <span style="color:var(--muted);font-weight:400">· ${esc(svc.name)}</span></div>
-      <div class="setlist-columns">
-        <div class="setlist-col">
-          <div class="setlist-col-heading">Songs</div>
-          ${songsHtml}
-        </div>
-        <div class="setlist-col">
-          <div class="setlist-col-heading">Teams</div>
-          ${teamsHtml || '<div style="color:var(--muted);font-size:13px">No team assigned.</div>'}
-        </div>
+      <div class="setlist-grid">
+        ${songCards}
+        ${teamCards}
       </div>
     </div>`;
 }
