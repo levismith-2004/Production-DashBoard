@@ -264,7 +264,7 @@ a { color: var(--accent); text-decoration: none; }
 .setlist-service { margin-bottom: 28px; }
 .setlist-service-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
 .setlist-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px; align-items: start;
 }
 .setlist-card {
@@ -295,15 +295,18 @@ a { color: var(--accent); text-decoration: none; }
   padding: 2px 8px; border-radius: 4px;
 }
 .setlist-person {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 6px 0; gap: 8px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0; gap: 10px; border-bottom: 1px solid var(--border);
 }
 .setlist-person:last-child { border-bottom: none; }
-.setlist-person-name { font-size: 13px; }
+.setlist-person-name { font-size: 13px; white-space: nowrap; }
 .setlist-person-name.confirmed { color: var(--green); }
 .setlist-person-name.declined { color: var(--red); text-decoration: line-through; }
 .setlist-person-name.pending { color: var(--text); }
-.setlist-person-pos { font-size: 11px; color: var(--muted); font-family: var(--mono); text-align: right; }
+.setlist-person-pos {
+  font-size: 11px; color: var(--muted); font-family: var(--mono);
+  text-align: right; white-space: nowrap; flex-shrink: 0;
+}
 /* Home person sub-tabs */
 .home-persons { display: flex; gap: 6px; flex-wrap: wrap; }
 .home-person-tab {
@@ -1596,7 +1599,12 @@ option.primary-person::before { content: '★ '; }
             <div class="section-title">Set List</div>
             <div class="section-sub">Songs and teams for the upcoming Sunday services</div>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="loadSetList()">↺ Refresh</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="setlistPrevWeek()">‹ Prev</button>
+            <button class="btn btn-ghost btn-sm" onclick="setlistThisWeek()">This Sunday</button>
+            <button class="btn btn-ghost btn-sm" onclick="setlistNextWeek()">Next ›</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadSetList()">↺</button>
+          </div>
         </div>
         <div id="setlist-content" style="margin-top:16px"><div class="state-msg">Loading…</div></div>
       </div>
@@ -6163,9 +6171,49 @@ async function deleteProcess(id) {
   }
 }
 
+let setlistPastLoaded = false;
+let setlistExtraEvents = []; // past Sunday events fetched on demand
+
+async function ensurePastSundays() {
+  if (setlistPastLoaded) return;
+  setlistPastLoaded = true;
+  const sundayIds = ['288093', '288103'];
+  for (const stId of sundayIds) {
+    try {
+      const data = await pcoGet(`/services/v2/service_types/${stId}/plans?filter=past&per_page=12&order=-sort_date`);
+      const plans = data.data || [];
+      const stName = (serviceTypes.find(s => s.id === stId) || {}).name || 'Sunday';
+      plans.forEach(p => {
+        const sd = (p.attributes.sort_date || '').slice(0, 10);
+        if (sd) setlistExtraEvents.push({ date: sd, name: stName, stId, plan: p });
+      });
+    } catch (e) { console.warn('past plans load error:', e); }
+  }
+}
+
+function allSundayEvents() {
+  // Combine the app's future events with any on-demand past events
+  const combined = allCalEvents.concat(setlistExtraEvents);
+  // Dedupe by date+stId
+  const seen = new Set();
+  return combined.filter(e => {
+    if (!SUNDAY_ST_IDS.has(e.stId) || !e.plan || !e.plan.id) return false;
+    const k = e.date + '|' + e.stId;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  SET LIST — songs + worship/production teams for upcoming Sundays
 // ═══════════════════════════════════════════════════════════════════
+let setlistWeekOffset = 0; // 0 = soonest upcoming Sunday, +1 next, -1 previous
+
+function setlistPrevWeek() { setlistWeekOffset--; loadSetList(); }
+function setlistNextWeek() { setlistWeekOffset++; loadSetList(); }
+function setlistThisWeek() { setlistWeekOffset = 0; loadSetList(); }
+
 async function loadSetList() {
   const container = document.getElementById('setlist-content');
   if (!container) return;
@@ -6176,32 +6224,43 @@ async function loadSetList() {
   }
   container.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading set list…</div>';
 
-  const today = new Date().toISOString().slice(0, 10);
-  // Next upcoming Sunday AM + PM services
-  const upcoming = allCalEvents
-    .filter(e => e.date >= today && SUNDAY_ST_IDS.has(e.stId) && e.plan && e.plan.id)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  // If navigating backwards, make sure past Sundays are loaded
+  if (setlistWeekOffset < 0) await ensurePastSundays();
 
-  if (!upcoming.length) {
-    container.innerHTML = '<div class="state-msg">No upcoming Sunday services found.</div>';
+  const today = new Date().toISOString().slice(0, 10);
+  const events = allSundayEvents();
+
+  // Sorted distinct Sunday dates
+  const sundayDates = [...new Set(events.map(e => e.date))].sort();
+
+  if (!sundayDates.length) {
+    container.innerHTML = '<div class="state-msg">No Sunday services found.</div>';
     return;
   }
 
-  // Take the soonest Sunday's date, then include all services on that date
-  const soonestDate = upcoming[0].date;
-  const services = upcoming.filter(e => e.date === soonestDate);
+  let baseIdx = sundayDates.findIndex(d => d >= today);
+  if (baseIdx === -1) baseIdx = sundayDates.length - 1;
+
+  let targetIdx = baseIdx + setlistWeekOffset;
+  targetIdx = Math.max(0, Math.min(targetIdx, sundayDates.length - 1));
+  setlistWeekOffset = targetIdx - baseIdx;
+
+  const targetDate = sundayDates[targetIdx];
+  const services = events
+    .filter(e => e.date === targetDate)
+    .sort((a, b) => a.stId.localeCompare(b.stId));
 
   const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const d = new Date(soonestDate + 'T12:00:00');
-  const dateHeading = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const d = new Date(targetDate + 'T12:00:00');
+  const isThis = targetIdx === baseIdx;
+  const dateHeading = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}` +
+    (isThis ? ' <span style="font-size:12px;color:var(--muted);font-weight:400">(next up)</span>' : '');
 
   let html = `<div class="setlist-date-heading">${dateHeading}</div>`;
-
   for (const svc of services) {
     html += await buildSetListService(svc);
   }
-
   container.innerHTML = html;
 }
 
