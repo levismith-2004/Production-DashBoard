@@ -6395,6 +6395,11 @@ async function openSongFile(stId, planId, attachmentId, btnEl) {
       (res.data.attributes.attachment_url || res.data.attributes.url);
     if (urlOut) {
       window.open(urlOut, '_blank', 'noopener');
+    } else if (res && res.errors && res.errors.length) {
+      const err = res.errors[0];
+      const msg = err.detail || err.title || 'PCO rejected the request';
+      console.warn('open attachment error detail:', err);
+      toast('Cannot open: ' + msg, 'error');
     } else {
       toast('Could not open file (no URL returned).', 'error');
       console.warn('open attachment response:', res);
