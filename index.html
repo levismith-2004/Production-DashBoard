@@ -6293,9 +6293,15 @@ async function buildSetListService(svc) {
           const attData = await pcoGet(
             `/services/v2/service_types/${svc.stId}/plans/${svc.plan.id}/items/${s.id}/attachments?per_page=25`
           );
+          if (attData.data && attData.data.length && !window._loggedAttachment) {
+            window._loggedAttachment = true;
+            console.log('SAMPLE ATTACHMENT OBJECT:', JSON.stringify(attData.data[0], null, 2));
+          }
           files = (attData.data || []).map(at => ({
             name: at.attributes.filename || at.attributes.display_name || 'File',
             id: at.id,
+            // Capture any self link PCO provides
+            selfLink: (at.links && at.links.self) || null,
           }));
         } catch (e) { /* no attachments */ }
         const fileTags = files.length
