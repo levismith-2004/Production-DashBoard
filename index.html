@@ -259,6 +259,45 @@ a { color: var(--accent); text-decoration: none; }
 .process-info { flex: 1; min-width: 0; }
 .process-title { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
 .process-meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+/* Set List tab */
+.setlist-date-heading { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--accent); }
+.setlist-service {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 18px; margin-bottom: 18px;
+}
+.setlist-service-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.setlist-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.setlist-col-heading {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); margin-bottom: 12px; font-weight: 600;
+}
+.setlist-song {
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.setlist-song:last-child { border-bottom: none; }
+.setlist-song-main { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.setlist-song-title { font-size: 15px; font-weight: 500; }
+.setlist-song-key {
+  font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent);
+  background: var(--accent-glow); padding: 1px 8px; border-radius: 10px;
+}
+.setlist-song-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.setlist-file {
+  font-size: 11px; font-family: var(--mono); color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border2);
+  padding: 2px 8px; border-radius: 4px;
+}
+.setlist-team { margin-bottom: 14px; }
+.setlist-team-name {
+  font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text);
+  padding-bottom: 4px; border-bottom: 1px solid var(--border);
+}
+.setlist-person { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; gap: 8px; }
+.setlist-person-name { font-size: 13px; }
+.setlist-person-name.confirmed { color: var(--green); }
+.setlist-person-name.declined { color: var(--red); text-decoration: line-through; }
+.setlist-person-name.pending { color: var(--text); }
+.setlist-person-pos { font-size: 11px; color: var(--muted); font-family: var(--mono); }
 /* Home person sub-tabs */
 .home-persons { display: flex; gap: 6px; flex-wrap: wrap; }
 .home-person-tab {
@@ -778,6 +817,7 @@ option.primary-person::before { content: '★ '; }
 ══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   :root { --topbar-h: 48px; --mob-nav-h: 72px; }
+  .setlist-columns { grid-template-columns: 1fr; gap: 16px; }
 
   /* ── Bottom nav ── */
   #mob-nav {
@@ -1133,6 +1173,7 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn" onclick="switchTab('people')" data-tab="people">People</button>
       <button class="tab-btn" onclick="switchTab('audio')" data-tab="audio">Audio</button>
       <button class="tab-btn" onclick="switchTab('processes')" data-tab="processes">Processes</button>
+      <button class="tab-btn" onclick="switchTab('setlist')" data-tab="setlist">Set List</button>
       <div class="tab-spacer"></div>
       <div id="connection-status">
         <div class="status-dot" id="conn-dot"></div>
@@ -1539,6 +1580,18 @@ option.primary-person::before { content: '★ '; }
             <div id="sf-nodes" style="position:absolute;inset:0"></div>
           </div>
         </div>
+      </div>
+
+      <!-- ── Set List ──────────────────────────────────────── -->
+      <div class="tab-panel" id="panel-setlist">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Set List</div>
+            <div class="section-sub">Songs and teams for the upcoming Sunday services</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="loadSetList()">↺ Refresh</button>
+        </div>
+        <div id="setlist-content" style="margin-top:16px"><div class="state-msg">Loading…</div></div>
       </div>
 
       <!-- ── Processes ─────────────────────────────────────── -->
@@ -4771,6 +4824,7 @@ function switchTab(tabId) {
   if (tabId === 'calendar') buildFullCalendar();
   if (tabId === 'audio') { loadPatch(); loadSignalFlow(); }
   if (tabId === 'processes') loadProcesses();
+  if (tabId === 'setlist') loadSetList();
   if (tabId === 'home') { loadAnnouncements(); }
   if (tabId === 'live' && liveGrid) {
     // Grid was likely init'd while hidden — nudge it to recalc and refresh data
@@ -6100,6 +6154,158 @@ async function deleteProcess(id) {
   } catch (e) {
     toast('Delete failed.', 'error');
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SET LIST — songs + worship/production teams for upcoming Sundays
+// ═══════════════════════════════════════════════════════════════════
+async function loadSetList() {
+  const container = document.getElementById('setlist-content');
+  if (!container) return;
+  if (!calendarDataReady) {
+    container.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Waiting for service data…</div>';
+    setTimeout(loadSetList, 1500);
+    return;
+  }
+  container.innerHTML = '<div class="state-msg"><div class="spinner"></div><br>Loading set list…</div>';
+
+  const today = new Date().toISOString().slice(0, 10);
+  // Next upcoming Sunday AM + PM services
+  const upcoming = allCalEvents
+    .filter(e => e.date >= today && SUNDAY_ST_IDS.has(e.stId) && e.plan && e.plan.id)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (!upcoming.length) {
+    container.innerHTML = '<div class="state-msg">No upcoming Sunday services found.</div>';
+    return;
+  }
+
+  // Take the soonest Sunday's date, then include all services on that date
+  const soonestDate = upcoming[0].date;
+  const services = upcoming.filter(e => e.date === soonestDate);
+
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = new Date(soonestDate + 'T12:00:00');
+  const dateHeading = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+
+  let html = `<div class="setlist-date-heading">${dateHeading}</div>`;
+
+  for (const svc of services) {
+    html += await buildSetListService(svc);
+  }
+
+  container.innerHTML = html;
+}
+
+async function buildSetListService(svc) {
+  let songsHtml = '<div style="color:var(--muted);font-size:13px">No songs found.</div>';
+  let teamsHtml = '';
+
+  try {
+    // 1. Songs (items where item_type is Song), with attachments included
+    const itemsData = await pcoGet(
+      `/services/v2/service_types/${svc.stId}/plans/${svc.plan.id}/items?per_page=100&include=song,arrangement`
+    );
+    const items = itemsData.data || [];
+    const songs = items.filter(i => (i.attributes.item_type || '').toLowerCase() === 'song');
+
+    if (songs.length) {
+      const rows = [];
+      for (const s of songs) {
+        const a = s.attributes;
+        const key = a.key_name || '';
+        // Fetch attachments for this song item
+        let files = [];
+        try {
+          const attData = await pcoGet(
+            `/services/v2/service_types/${svc.stId}/plans/${svc.plan.id}/items/${s.id}/attachments?per_page=25`
+          );
+          files = (attData.data || []).map(at => ({
+            name: at.attributes.filename || at.attributes.display_name || 'File',
+            id: at.id,
+          }));
+        } catch (e) { /* no attachments */ }
+
+        const fileTags = files.length
+          ? files.map(f => `<span class="setlist-file">${esc(f.name)}</span>`).join('')
+          : '<span style="color:var(--muted2);font-size:11px">no files</span>';
+
+        rows.push(`
+          <div class="setlist-song">
+            <div class="setlist-song-main">
+              <span class="setlist-song-title">${esc(a.title || 'Untitled')}</span>
+              ${key ? `<span class="setlist-song-key">${esc(key)}</span>` : ''}
+            </div>
+            <div class="setlist-song-files">${fileTags}</div>
+          </div>`);
+      }
+      songsHtml = rows.join('');
+    }
+
+    // 2. Team members grouped by team (Vocals, Band, Production, etc.)
+    const membersData = await pcoGet(
+      `/services/v2/service_types/${svc.stId}/plans/${svc.plan.id}/team_members?per_page=100&include=team`
+    );
+    const members = membersData.data || [];
+    const included = membersData.included || [];
+    // Map team id → team name
+    const teamNames = {};
+    included.filter(x => x.type === 'Team').forEach(t => { teamNames[t.id] = t.attributes.name; });
+
+    // Group members by team name
+    const byTeam = {};
+    members.forEach(m => {
+      const teamId = m.relationships.team && m.relationships.team.data ? m.relationships.team.data.id : null;
+      const teamName = (teamId && teamNames[teamId]) || 'Other';
+      if (!byTeam[teamName]) byTeam[teamName] = [];
+      byTeam[teamName].push({
+        name: m.attributes.name,
+        position: m.attributes.team_position_name,
+        status: m.attributes.status,
+      });
+    });
+
+    // Preferred order: Vocals, Band, Production, then anything else
+    const order = ['Vocals', 'Band', 'Production'];
+    const teamKeys = Object.keys(byTeam).sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+
+    teamsHtml = teamKeys.map(tn => {
+      const people = byTeam[tn].map(p => {
+        const stClass = p.status === 'C' ? 'confirmed' : p.status === 'D' ? 'declined' : 'pending';
+        return `<div class="setlist-person">
+          <span class="setlist-person-name ${stClass}">${esc(p.name)}</span>
+          <span class="setlist-person-pos">${esc(p.position || '')}</span>
+        </div>`;
+      }).join('');
+      return `<div class="setlist-team">
+        <div class="setlist-team-name">${esc(tn)}</div>
+        ${people}
+      </div>`;
+    }).join('');
+
+  } catch (e) {
+    console.warn('buildSetListService error:', e);
+  }
+
+  const svcLabel = svc.stId === '288103' ? 'Sunday PM' : 'Sunday AM';
+  return `
+    <div class="setlist-service">
+      <div class="setlist-service-title">${esc(svcLabel)} <span style="color:var(--muted);font-weight:400">· ${esc(svc.name)}</span></div>
+      <div class="setlist-columns">
+        <div class="setlist-col">
+          <div class="setlist-col-heading">Songs</div>
+          ${songsHtml}
+        </div>
+        <div class="setlist-col">
+          <div class="setlist-col-heading">Teams</div>
+          ${teamsHtml || '<div style="color:var(--muted);font-size:13px">No team assigned.</div>'}
+        </div>
+      </div>
+    </div>`;
 }
 
 // Apply saved theme on page load
