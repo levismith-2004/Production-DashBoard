@@ -1488,7 +1488,6 @@ option.primary-person::before { content: '★ '; }
         <div class="section-header">
           <div>
             <div class="section-title">Gear Inventory</div>
-            <div class="section-sub">Managed in Airtable</div>
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-ghost btn-sm" onclick="loadInventory()">↺ Refresh</button>
@@ -4854,7 +4853,7 @@ async function saveInvItem() {
     notes: document.getElementById('inv-f-notes').value.trim(),
   };
   if (!item.item) { toast('Item name is required.', 'error'); return; }
-  // category is optional — if blank, omit from payload (Airtable rejects empty single-select)
+  // category is optional — omit when blank rather than storing an empty value
   if (!item.category) delete item.category;
   try {
     let res;
