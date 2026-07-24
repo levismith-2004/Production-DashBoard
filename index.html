@@ -6293,19 +6293,16 @@ async function buildSetListService(svc) {
           const attData = await pcoGet(
             `/services/v2/service_types/${svc.stId}/plans/${svc.plan.id}/items/${s.id}/attachments?per_page=25`
           );
-          if (attData.data && attData.data.length && !window._loggedAttachment) {
-            window._loggedAttachment = true;
-            console.log('SAMPLE ATTACHMENT OBJECT:', JSON.stringify(attData.data[0], null, 2));
-          }
           files = (attData.data || []).map(at => ({
             name: at.attributes.filename || at.attributes.display_name || 'File',
-            id: at.id,
-            // Capture any self link PCO provides
-            selfLink: (at.links && at.links.self) || null,
+            url: at.attributes.url || at.attributes.linked_url || at.attributes.remote_link || null,
           }));
         } catch (e) { /* no attachments */ }
         const fileTags = files.length
-          ? files.map(f => `<button class="setlist-file setlist-file-btn" onclick="openSongFile('${svc.stId}','${svc.plan.id}','${f.id}',this)">${esc(f.name)}</button>`).join('')
+          ? files.map(f => f.url
+              ? `<a class="setlist-file setlist-file-btn" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a>`
+              : `<span class="setlist-file">${esc(f.name)}</span>`
+            ).join('')
           : '<span style="color:var(--muted2);font-size:11px">no files</span>';
         rows.push(`
           <div class="setlist-song">
@@ -6387,35 +6384,6 @@ async function buildSetListService(svc) {
         ${teamCards}
       </div>
     </div>`;
-}
-
-// Open a song's attached file — asks PCO for a temporary URL, then opens it
-async function openSongFile(stId, planId, attachmentId, btnEl) {
-  const original = btnEl ? btnEl.textContent : '';
-  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Opening…'; }
-  try {
-    const path = `/services/v2/service_types/${stId}/plans/${planId}/attachments/${attachmentId}/open`;
-    const res = await pcoPost(path, {});
-    // PCO returns the temporary URL in data.attributes.attachment_url
-    const urlOut = res && res.data && res.data.attributes &&
-      (res.data.attributes.attachment_url || res.data.attributes.url);
-    if (urlOut) {
-      window.open(urlOut, '_blank', 'noopener');
-    } else if (res && res.errors && res.errors.length) {
-      const err = res.errors[0];
-      const msg = err.detail || err.title || 'PCO rejected the request';
-      console.warn('open attachment error detail:', err);
-      toast('Cannot open: ' + msg, 'error');
-    } else {
-      toast('Could not open file (no URL returned).', 'error');
-      console.warn('open attachment response:', res);
-    }
-  } catch (e) {
-    console.warn('openSongFile error:', e);
-    toast('Could not open file.', 'error');
-  } finally {
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = original; }
-  }
 }
 
 // Apply saved theme on page load

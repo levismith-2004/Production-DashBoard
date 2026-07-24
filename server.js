@@ -60,6 +60,37 @@ async function supabaseSet(key, value) {
   throw new Error(`Supabase SET ${key} failed: ${result.status} ${result.body}`);
 }
 
+// True if a value counts as "no data" (handles arrays and objects)
+function isEmptyData(v) {
+  if (v === null || v === undefined) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v).length === 0;
+  return false;
+}
+
+// Read a key from Supabase. If the key doesn't exist yet (first run after
+// migration), seed it once from the old GitHub file, then use Supabase forever.
+// The GitHub data repo is never modified — it stays as a read-only backup.
+async function supabaseReadOrSeed(key, githubPath, fallback) {
+  const val = await supabaseGet(key);
+  if (val !== null) return val;  // already migrated (even if empty)
+
+  if (githubEnabled() && githubPath) {
+    try {
+      const { items } = await githubGetFile(githubPath);
+      if (!isEmptyData(items)) {
+        await supabaseSet(key, items);
+        console.log(`Seeded '${key}' from GitHub into Supabase.`);
+        return items;
+      }
+    } catch (e) {
+      console.warn(`Seed '${key}' from GitHub failed:`, e.message);
+    }
+  }
+  await supabaseSet(key, fallback);  // mark as migrated so we don't retry each read
+  return fallback;
+}
+
 // ── Supabase Storage (PDF files) ─────────────────────────────────────────────
 // Upload a binary buffer to the storage bucket. Returns the public URL.
 function supabaseUpload(objectPath, buffer, contentType) {
@@ -378,6 +409,10 @@ function localWrite(items) {
 // ── Unified inventory API ───────────────────────────────────────────────────
 
 async function inventoryRead() {
+  if (supabaseEnabled()) {
+    const val = await supabaseReadOrSeed('inventory', GITHUB_PATH, []);
+    return Array.isArray(val) ? val : [];
+  }
   if (githubEnabled()) {
     const { items } = await githubGetFile(GITHUB_PATH);
     return items;
@@ -390,6 +425,12 @@ async function inventoryAdd(item) {
   item.quantity    = Number(item.quantity)    || 1;
   item.value       = Number(item.value)       || 0;
   item.retailValue = Number(item.retailValue) || 0;
+  if (supabaseEnabled()) {
+    const items = await inventoryRead();
+    items.push(item);
+    await supabaseSet('inventory', items);
+    return item;
+  }
   if (githubEnabled()) {
     const { items, sha } = await githubGetFile(GITHUB_PATH);
     items.push(item);
@@ -403,6 +444,17 @@ async function inventoryAdd(item) {
 }
 
 async function inventoryUpdate(id, updates) {
+  if (supabaseEnabled()) {
+    const items = await inventoryRead();
+    const idx = items.findIndex(i => i.id === id);
+    if (idx === -1) throw new Error('Not found');
+    items[idx] = { ...items[idx], ...updates, id };
+    items[idx].quantity    = Number(items[idx].quantity)    || 1;
+    items[idx].value       = Number(items[idx].value)       || 0;
+    items[idx].retailValue = Number(items[idx].retailValue) || 0;
+    await supabaseSet('inventory', items);
+    return items[idx];
+  }
   if (githubEnabled()) {
     const { items, sha } = await githubGetFile(GITHUB_PATH);
     const idx = items.findIndex(i => i.id === id);
@@ -427,6 +479,13 @@ async function inventoryUpdate(id, updates) {
 }
 
 async function inventoryDelete(id) {
+  if (supabaseEnabled()) {
+    const items = await inventoryRead();
+    const filtered = items.filter(i => i.id !== id);
+    if (filtered.length === items.length) throw new Error('Not found');
+    await supabaseSet('inventory', filtered);
+    return;
+  }
   if (githubEnabled()) {
     const { items, sha } = await githubGetFile(GITHUB_PATH);
     const filtered = items.filter(i => i.id !== id);
@@ -541,6 +600,10 @@ function newId() {
 // ── Patch sheet CRUD ────────────────────────────────────────────────────────
 
 async function patchRead() {
+  if (supabaseEnabled()) {
+    const val = await supabaseReadOrSeed('patch', PATCH_PATH, {});
+    return (val && typeof val === 'object') ? val : {};
+  }
   if (githubEnabled()) {
     try {
       const result = await httpsRequest({
@@ -566,6 +629,10 @@ async function patchRead() {
 }
 
 async function patchSave(data) {
+  if (supabaseEnabled()) {
+    await supabaseSet('patch', data);
+    return;
+  }
   if (githubEnabled()) {
     // For patch, we need to get SHA first
     const result = await httpsRequest({
@@ -603,6 +670,10 @@ async function patchSave(data) {
 // ── Signal Flow CRUD ────────────────────────────────────────────────────────
 
 async function signalFlowRead() {
+  if (supabaseEnabled()) {
+    const val = await supabaseReadOrSeed('signalflow', SIGNALFLOW_PATH, {});
+    return (val && typeof val === 'object') ? val : {};
+  }
   if (githubEnabled()) {
     try {
       const result = await httpsRequest({
@@ -628,6 +699,10 @@ async function signalFlowRead() {
 }
 
 async function signalFlowSave(data) {
+  if (supabaseEnabled()) {
+    await supabaseSet('signalflow', data);
+    return;
+  }
   if (githubEnabled()) {
     const result = await httpsRequest({
       hostname: 'api.github.com',
@@ -664,6 +739,10 @@ async function signalFlowSave(data) {
 // ── Home layout CRUD ────────────────────────────────────────────────────────
 
 async function homeLayoutRead() {
+  if (supabaseEnabled()) {
+    const val = await supabaseReadOrSeed('homelayout', HOMELAYOUT_PATH, {});
+    return (val && typeof val === 'object') ? val : {};
+  }
   if (githubEnabled()) {
     try {
       const result = await httpsRequest({
@@ -689,6 +768,10 @@ async function homeLayoutRead() {
 }
 
 async function homeLayoutSave(data) {
+  if (supabaseEnabled()) {
+    await supabaseSet('homelayout', data);
+    return;
+  }
   if (githubEnabled()) {
     const result = await httpsRequest({
       hostname: 'api.github.com',
@@ -727,6 +810,11 @@ const USER_DATA_DEFAULT = { theme: null, homelayout: {} };
 
 async function userDataRead(username) {
   const p = userDataPath(username);
+  if (supabaseEnabled()) {
+    const key = 'userdata:' + String(username).toLowerCase();
+    const val = await supabaseReadOrSeed(key, p, { ...USER_DATA_DEFAULT });
+    return (val && typeof val === 'object') ? val : { ...USER_DATA_DEFAULT };
+  }
   if (githubEnabled()) {
     try {
       const result = await httpsRequest({
@@ -754,6 +842,10 @@ async function userDataRead(username) {
 
 async function userDataSave(username, data) {
   const p = userDataPath(username);
+  if (supabaseEnabled()) {
+    await supabaseSet('userdata:' + String(username).toLowerCase(), data);
+    return;
+  }
   if (githubEnabled()) {
     const result = await httpsRequest({
       hostname: 'api.github.com',
@@ -863,6 +955,31 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.warn('POST /processes/delete error:', e);
       return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── GET /supabase-status — which data has migrated across ───────────────
+  if (pathname === '/supabase-status' && method === 'GET') {
+    try {
+      if (!supabaseEnabled()) {
+        return jsonResponse(res, 200, { ok: false, reason: 'Supabase env vars not set' });
+      }
+      const keys = ['inventory', 'announcements', 'patch', 'signalflow', 'homelayout',
+                    'processes', 'userdata:shared'];
+      const status = {};
+      for (const k of keys) {
+        try {
+          const v = await supabaseGet(k);
+          status[k] = v === null
+            ? 'not migrated yet'
+            : (Array.isArray(v) ? `${v.length} items` : `${Object.keys(v).length} keys`);
+        } catch (e) {
+          status[k] = 'error: ' + e.message;
+        }
+      }
+      return jsonResponse(res, 200, { ok: true, status });
+    } catch (e) {
+      return jsonResponse(res, 200, { ok: false, error: e.message });
     }
   }
 
