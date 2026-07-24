@@ -1105,12 +1105,33 @@ option.primary-person::before { content: '★ '; }
   display: block; margin: 0 auto;
 }
 .patch-col-num    { width: 44px; }
+.patch-col-trap   { width: 92px; }
+.patch-col-colour { width: 46px; }
 .patch-col-label  { width: 16%; }
 .patch-col-source { width: 18%; }
 .patch-col-phantom{ width: 52px; }
 .patch-col-gain   { width: 70px; }
 .patch-col-dest   { width: 20%; }
 .patch-col-notes  { width: auto; }
+.patch-select {
+  width: 100%; background: transparent; border: none; outline: none;
+  color: var(--text); font-size: 12px; padding: 7px 6px;
+  font-family: var(--font); cursor: pointer;
+}
+.patch-select:focus { background: var(--accent-glow); }
+.patch-select option { background: var(--surface); color: var(--text); }
+.patch-colour-cell { white-space: nowrap; padding: 4px 6px; }
+.patch-colour {
+  width: 22px; height: 22px; padding: 0; border: 1px solid var(--border2);
+  border-radius: 4px; background: transparent; cursor: pointer; vertical-align: middle;
+}
+.patch-colour::-webkit-color-swatch-wrapper { padding: 2px; }
+.patch-colour::-webkit-color-swatch { border: none; border-radius: 2px; }
+.patch-colour-clear {
+  background: none; border: none; color: var(--muted2); cursor: pointer;
+  font-size: 10px; padding: 0 2px; vertical-align: middle;
+}
+.patch-colour-clear:hover { color: var(--red); }
 .patch-dirty-indicator {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
   background: var(--yellow); margin-left: 8px; vertical-align: middle;
@@ -5577,13 +5598,29 @@ function buildDefaultPatch() {
   };
 }
 
+// ── Trap assignment + colour coding ──────────────────────────────
+const TRAP_OPTIONS = ['Local', 'Trap 1', 'Trap 2', 'Trap 3', 'Trap 4', 'Trap 5', 'Drums'];
+const TRAP_COLOURS = {
+  'Local':  '#94A3B8',
+  'Trap 1': '#38BDF8',
+  'Trap 2': '#A78BFA',
+  'Trap 3': '#FBBF24',
+  'Trap 4': '#4ADE80',
+  'Trap 5': '#F472B6',
+  'Drums':  '#FB923C',
+};
+// Manual colour wins; otherwise fall back to the trap's colour
+function rowColour(r) {
+  return r.colour || TRAP_COLOURS[r.trap] || '';
+}
+
 // ── Load ─────────────────────────────────────────────────────────
 async function loadPatch() {
   try {
     const res = await fetch('/patch');
     const data = await res.json();
-    // If empty or missing keys, use default
-    patchData = (data && data.sq6_inputs) ? data : buildDefaultPatch();
+    // Fall back to defaults if the saved data is missing the sections we render
+    patchData = (data && data.gx_inputs && data.gx_outputs) ? data : buildDefaultPatch();
     renderPatch();
   } catch (e) {
     console.warn('loadPatch error:', e);
@@ -5633,24 +5670,13 @@ function renderPatch() {
 
   let html = '';
 
-  // ── Section 1: SQ6 Inputs ──────────────────────────────────────
-  html += patchSectionInput('sq6_inputs', 'SQ6 — Local Inputs',
-    '24× XLR · 2× Stereo TRS (ST1, ST2)', patchData.sq6_inputs, true);
-
-  // ── Section 2: SQ6 Outputs ─────────────────────────────────────
-  html += patchSectionOutput('sq6_outputs', 'SQ6 — Local Outputs',
-    '14× XLR · 1× AES · 2× TRS (A, B)', patchData.sq6_outputs);
-
-  // ── Section 3: GX4816 Inputs ───────────────────────────────────
+  // ── GX4816 Inputs ──────────────────────────────────────────────
   html += patchSectionInput('gx_inputs', 'GX4816 Stage Rack — Inputs',
     '48× inputs', patchData.gx_inputs, true);
 
-  // ── Section 4: GX4816 Outputs ──────────────────────────────────
+  // ── GX4816 Outputs ─────────────────────────────────────────────
   html += patchSectionOutput('gx_outputs', 'GX4816 Stage Rack — Outputs',
     '16× outputs', patchData.gx_outputs);
-
-  // ── Section 5: Patch Bay ───────────────────────────────────────
-  html += patchSectionBay();
 
   container.innerHTML = html;
 }
@@ -5660,6 +5686,8 @@ function patchSectionInput(key, title, sub, rows, showPhantom) {
     <col class="patch-col-num"/>
     <col class="patch-col-label"/>
     <col class="patch-col-source"/>
+    <col class="patch-col-trap"/>
+    <col class="patch-col-colour"/>
     ${showPhantom ? '<col class="patch-col-phantom"/>' : ''}
     <col class="patch-col-gain"/>
     <col class="patch-col-notes"/>
@@ -5667,23 +5695,38 @@ function patchSectionInput(key, title, sub, rows, showPhantom) {
   const thead = `<tr>
     <th style="text-align:right">#</th>
     <th>Label</th><th>Source</th>
+    <th>Trap</th><th></th>
     ${showPhantom ? '<th class="patch-phantom">48V</th>' : ''}
     <th>Gain</th><th>Notes</th>
   </tr>`;
-  const rowsHtml = rows.map(r => `
-    <tr>
+  const rowsHtml = rows.map((r, i) => {
+    const colour = rowColour(r);
+    const trapOpts = ['<option value="">—</option>'].concat(
+      TRAP_OPTIONS.map(t => `<option value="${t}"${r.trap === t ? ' selected' : ''}>${t}</option>`)
+    ).join('');
+    return `
+    <tr${colour ? ` style="box-shadow:inset 3px 0 0 ${colour}"` : ''}>
       <td class="patch-num">${r.n}</td>
       <td><input class="patch-input" value="${esc(r.label)}" placeholder="Label"
-        oninput="patchData.${key}[${rows.indexOf(r)}].label=this.value;patchChanged()"/></td>
+        oninput="patchData.${key}[${i}].label=this.value;patchChanged()"/></td>
       <td><input class="patch-input" value="${esc(r.source)}" placeholder="Source"
-        oninput="patchData.${key}[${rows.indexOf(r)}].source=this.value;patchChanged()"/></td>
+        oninput="patchData.${key}[${i}].source=this.value;patchChanged()"/></td>
+      <td><select class="patch-select" onchange="patchData.${key}[${i}].trap=this.value;patchChanged();renderPatch()">${trapOpts}</select></td>
+      <td class="patch-colour-cell">
+        <input type="color" class="patch-colour" value="${colour || '#334155'}"
+          title="Override colour"
+          onchange="patchData.${key}[${i}].colour=this.value;patchChanged();renderPatch()"/>
+        ${r.colour ? `<button class="patch-colour-clear" title="Use trap colour"
+          onclick="delete patchData.${key}[${i}].colour;patchChanged();renderPatch()">✕</button>` : ''}
+      </td>
       ${showPhantom ? `<td class="patch-phantom"><input type="checkbox" ${r.phantom?'checked':''}
-        onchange="patchData.${key}[${rows.indexOf(r)}].phantom=this.checked;patchChanged()"/></td>` : ''}
+        onchange="patchData.${key}[${i}].phantom=this.checked;patchChanged()"/></td>` : ''}
       <td><input class="patch-input" value="${esc(r.gain)}" placeholder="—" style="max-width:70px"
-        oninput="patchData.${key}[${rows.indexOf(r)}].gain=this.value;patchChanged()"/></td>
+        oninput="patchData.${key}[${i}].gain=this.value;patchChanged()"/></td>
       <td><input class="patch-input" value="${esc(r.notes)}" placeholder="Notes"
-        oninput="patchData.${key}[${rows.indexOf(r)}].notes=this.value;patchChanged()"/></td>
-    </tr>`).join('');
+        oninput="patchData.${key}[${i}].notes=this.value;patchChanged()"/></td>
+    </tr>`;
+  }).join('');
   return `<div class="patch-section">
     <div class="patch-section-header">
       <div>
