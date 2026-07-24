@@ -185,7 +185,14 @@ a { color: var(--accent); text-decoration: none; }
 /* ── Section headers ─────────────────────────────────────────── */
 .section-header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 16px; gap: 10px;
+}
+/* Inside widgets, a long title shrinks instead of shoving the buttons out */
+.grid-stack-item-content .section-header > div:first-child { flex: 1; min-width: 0; }
+.grid-stack-item-content .section-header > div:last-child { flex-shrink: 0; }
+.grid-stack-item-content .section-title,
+.grid-stack-item-content .section-sub {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .section-title { font-size: 16px; font-weight: 600; }
 .section-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
@@ -208,9 +215,24 @@ a { color: var(--accent); text-decoration: none; }
   position: absolute; top: 8px; left: 8px; right: 8px; bottom: 8px;
   height: auto; width: auto;
 }
-/* Make widget content scroll if too big rather than overflow */
-#announcements-list, #gaps-list, #week-services { overflow-y: auto; flex: 1; min-height: 0; }
-#mini-cal { flex: 1; min-height: 0; overflow-y: auto; }
+/* Widget bodies scroll rather than clip.
+   Both the legacy #ids and the .w- classes the widget templates actually use. */
+#announcements-list, #gaps-list, #week-services, #mini-cal,
+.grid-stack-item-content .w-announcements-list,
+.grid-stack-item-content .w-gaps-list,
+.grid-stack-item-content .w-week-services,
+.grid-stack-item-content .w-confirmations-content,
+.grid-stack-item-content .w-quickstats,
+.grid-stack-item-content .w-mini-cal,
+.grid-stack-item-content .w-lrs-content {
+  overflow-y: auto; flex: 1; min-height: 0;
+}
+/* Flex children default to min-width:auto, which stops them shrinking below
+   their content and pushes things outside the widget. */
+.grid-stack-item-content.card > *,
+.grid-stack-item-content .section-header > * { min-width: 0; }
+/* Long unbroken strings (filenames, URLs) shouldn't blow out the layout */
+.grid-stack-item-content.card { overflow-wrap: break-word; }
 /* Edit mode visual cue */
 .grid-stack.editing .grid-stack-item-content.card {
   border-color: var(--accent); border-style: dashed; cursor: move;
