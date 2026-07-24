@@ -246,10 +246,6 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--surface2); transition: all .15s;
 }
 .theme-mode-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
-.account-row { display: flex; align-items: center; gap: 8px; padding: 8px 0;
-  border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.account-row:last-child { border-bottom: none; }
-.account-pass-input { font-size: 12px; }
 /* Processes tab */
 .process-row {
   display: flex; align-items: center; gap: 14px; padding: 14px 16px;
@@ -1734,21 +1730,7 @@ option.primary-person::before { content: '★ '; }
             </div>
           </div>
 
-          <div class="grid-stack-item" gs-x="0" gs-y="11" gs-w="12" gs-h="6" gs-id="set-accounts">
-            <div class="grid-stack-item-content card" id="admin-accounts-card" style="display:none">
-              <div style="font-size:13px;font-weight:600;margin-bottom:6px">Accounts <span style="color:var(--accent);font-size:11px">(admin)</span></div>
-              <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
-                Add or remove users and set their passwords. Note: this is a lightweight internal login, not strong security.
-              </div>
-              <div id="accounts-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;overflow-y:auto;flex:1;min-height:0"></div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border);padding-top:14px">
-                <input id="new-account-name" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="New username"/>
-                <input id="new-account-pass" class="settings-input" style="flex:1;min-width:120px" type="text" placeholder="Password (optional)"/>
-                <button class="btn btn-primary btn-sm" onclick="adminAddUser()">+ Add User</button>
-              </div>
-            </div>
-          </div>
-
+          
         </div>
       </div>
 
@@ -2125,7 +2107,6 @@ document.getElementById('reset-pw2').addEventListener('keydown', e => {
 // Everyone shares one account. Data is stored under this fixed name.
 const SHARED_ACCOUNT = 'shared';
 let currentUser = SHARED_ACCOUNT;
-let currentUserAdmin = false;
 let authToken = null;      // Supabase access token (null when using shared password)
 let authEmail = null;      // signed-in email, if any
 
@@ -3063,9 +3044,6 @@ function initSettingsGrid() {
     disableDrag: true, disableResize: true, float: true,
     columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
   }, '#settings-grid');
-  // No accounts system — remove the admin accounts widget entirely
-  const accItem = document.querySelector('#settings-grid .grid-stack-item[gs-id="set-accounts"]');
-  if (accItem) { settingsGrid.removeWidget(accItem, false); accItem.remove(); }
   loadSettingsLayout();
 }
 
@@ -6603,103 +6581,6 @@ function dismissIosHint() {
 }
 maybeShowIosInstallHint();
 
-// ═══════════════════════════════════════════════════════════════════
-//  ADMIN — account management (Settings, admin only)
-// ═══════════════════════════════════════════════════════════════════
-function initAdminPanel() {
-  const card = document.getElementById('admin-accounts-card');
-  const gridItem = document.querySelector('#settings-grid .grid-stack-item[gs-id="set-accounts"]');
-  if (!card) return;
-  if (currentUserAdmin) {
-    card.style.display = '';
-    if (gridItem && settingsGrid) {
-      gridItem.style.display = '';
-      settingsGrid.makeWidget(gridItem);
-    }
-    loadAccountsList();
-  } else {
-    card.style.display = 'none';
-    // Remove the accounts widget from the grid entirely for non-admins
-    if (gridItem && settingsGrid) {
-      settingsGrid.removeWidget(gridItem, false);
-      gridItem.style.display = 'none';
-    }
-  }
-}
-
-async function loadAccountsList() {
-  const list = document.getElementById('accounts-list');
-  if (!list) return;
-  list.innerHTML = '<div style="color:var(--muted);font-size:13px">Loading…</div>';
-  try {
-    const res = await fetch('/accounts?admin=' + encodeURIComponent(currentUser));
-    const data = await res.json();
-    if (!data.accounts) { list.innerHTML = '<div style="color:var(--red);font-size:13px">Could not load accounts.</div>'; return; }
-    list.innerHTML = data.accounts.map(a => {
-      const isAdmin = a.name.toLowerCase() === 'levi';
-      return `
-      <div class="account-row">
-        <div style="flex:1">
-          <span style="font-weight:600">${esc(a.name)}</span>
-          ${a.admin ? '<span style="color:var(--accent);font-size:11px;margin-left:6px">admin</span>' : ''}
-          ${isAdmin
-            ? '<span style="color:var(--muted2);font-size:11px;margin-left:6px">• password via Railway</span>'
-            : `<span style="color:var(--muted2);font-size:11px;margin-left:6px">${a.hasPassword ? '• password set' : '• no password'}</span>`}
-        </div>
-        ${isAdmin ? '' : `
-          <input class="settings-input account-pass-input" style="width:130px" type="text" placeholder="New password" id="pass-${esc(a.name)}"/>
-          <button class="btn btn-ghost btn-sm" onclick="adminSetPass('${esc(a.name)}')">Set</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="adminRemoveUser('${esc(a.name)}')">✕</button>
-        `}
-      </div>`;
-    }).join('');
-  } catch (e) {
-    list.innerHTML = '<div style="color:var(--red);font-size:13px">Error loading accounts.</div>';
-  }
-}
-
-async function adminManage(payload) {
-  payload.admin = currentUser;
-  const res = await fetch('/accounts/manage', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json();
-  if (!data.ok) { toast(data.error || 'Action failed.', 'error'); return false; }
-  return true;
-}
-
-async function adminAddUser() {
-  const name = document.getElementById('new-account-name').value.trim();
-  const pass = document.getElementById('new-account-pass').value;
-  if (!name) { toast('Enter a username.', 'error'); return; }
-  if (await adminManage({ action: 'add', name })) {
-    if (pass) await adminManage({ action: 'setpass', name, password: pass });
-    document.getElementById('new-account-name').value = '';
-    document.getElementById('new-account-pass').value = '';
-    toast(name + ' added.', 'success');
-    loadAccountsList();
-  }
-}
-
-async function adminRemoveUser(name) {
-  if (!confirm(`Remove account "${name}"? Their personal layouts will remain in storage but they won't be able to log in.`)) return;
-  if (await adminManage({ action: 'remove', name })) {
-    toast(name + ' removed.', 'success');
-    loadAccountsList();
-  }
-}
-
-async function adminSetPass(name) {
-  const input = document.getElementById('pass-' + name);
-  const pass = input ? input.value : '';
-  if (!pass) { toast('Enter a password.', 'error'); return; }
-  if (await adminManage({ action: 'setpass', name, password: pass })) {
-    if (input) input.value = '';
-    toast('Password updated for ' + name + '.', 'success');
-    loadAccountsList();
-  }
-}
 </script>
 
 </body>
