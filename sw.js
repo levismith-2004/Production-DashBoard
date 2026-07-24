@@ -4,7 +4,7 @@
 //
 // TO FORCE EVERYONE ONTO A FRESH COPY: bump CACHE_VERSION below (e.g. v2 → v3).
 // Old caches are deleted on activate.
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = 'prod-dash-' + CACHE_VERSION;
 
 // Install immediately, don't wait for old tabs to close
@@ -32,10 +32,13 @@ self.addEventListener('fetch', (event) => {
   // Never cache API/data calls — always go to network (these must be live)
   const livePaths = ['/pco', '/userdata', '/homelayout', '/accounts', '/auth',
                      '/users', '/inventory', '/announcements', '/patch', '/signalflow',
-                     '/config.js'];
+                     '/processes', '/supabase-status', '/supabase-test', '/config.js'];
   if (livePaths.some(p => url.pathname.startsWith(p))) {
     return; // let the browser handle it normally (network)
   }
+
+  // Anything carrying a session token is per-user data — never cache it
+  if (req.headers.get('Authorization')) return;
 
   // Network-first for everything else (HTML, icons, manifest)
   event.respondWith(

@@ -951,6 +951,70 @@ async function userDataSave(username, data) {
   }
 }
 
+// ── Session / access control ─────────────────────────────────────────────────
+// Set AUTH_ENFORCE=off in Railway to disable endpoint protection in an
+// emergency (e.g. if a bad token change locks everyone out of their data).
+const AUTH_ENFORCE = (process.env.AUTH_ENFORCE || 'on').toLowerCase() !== 'off';
+
+// Sessions issued to people who signed in with the legacy shared password.
+// Held in memory, so a redeploy signs everyone out — which is fine and normal.
+const legacySessions = new Map(); // token -> issuedAt (ms)
+const LEGACY_SESSION_MS = 1000 * 60 * 60 * 12; // 12 hours
+
+function issueLegacySession() {
+  const token = 'legacy_' + crypto.randomBytes(24).toString('hex');
+  legacySessions.set(token, Date.now());
+  return token;
+}
+
+function legacySessionValid(token) {
+  const issued = legacySessions.get(token);
+  if (!issued) return false;
+  if (Date.now() - issued > LEGACY_SESSION_MS) {
+    legacySessions.delete(token);
+    return false;
+  }
+  return true;
+}
+
+// Cache verified Supabase tokens briefly so we're not calling out on every request
+const tokenCache = new Map(); // token -> expiry (ms)
+const TOKEN_CACHE_MS = 1000 * 60 * 5;
+
+// Paths anyone may reach without being signed in
+const PUBLIC_PATHS = new Set([
+  '/auth', '/auth/forgot', '/auth/set-password', '/auth/check',
+  '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/config.js',
+]);
+
+function bearerFrom(req) {
+  const h = req.headers['authorization'] || '';
+  return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
+}
+
+// Returns true if this request is allowed to proceed.
+async function isAuthorised(req, pathname) {
+  if (!AUTH_ENFORCE) return true;
+  if (PUBLIC_PATHS.has(pathname)) return true;
+  // The app shell itself is public; the data behind it is not.
+  if (pathname === '/' || pathname === '/index.html') return true;
+
+  const token = bearerFrom(req);
+  if (!token) return false;
+
+  if (token.startsWith('legacy_')) return legacySessionValid(token);
+
+  const cached = tokenCache.get(token);
+  if (cached && cached > Date.now()) return true;
+
+  const user = await supabaseVerifyToken(token);
+  if (user && user.id) {
+    tokenCache.set(token, Date.now() + TOKEN_CACHE_MS);
+    return true;
+  }
+  return false;
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -963,9 +1027,15 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, x-pco-auth',
+      'Access-Control-Allow-Headers': 'Content-Type, x-pco-auth, Authorization',
     });
     return res.end();
+  }
+
+  // ── Access control ──────────────────────────────────────────────────────
+  // Everything that isn't explicitly public requires a valid session.
+  if (!(await isAuthorised(req, pathname))) {
+    return jsonResponse(res, 401, { error: 'Not signed in' });
   }
 
   // ── GET /processes — list process documents ─────────────────────────────
@@ -1101,7 +1171,8 @@ const server = http.createServer(async (req, res) => {
         return jsonResponse(res, 401, { ok: false, error: 'Incorrect password' });
       }
       return jsonResponse(res, 200, {
-        ok: true, mode: 'legacy', appId: PCO_APP_ID, secret: PCO_SECRET,
+        ok: true, mode: 'legacy', token: issueLegacySession(),
+        appId: PCO_APP_ID, secret: PCO_SECRET,
       });
     } catch (e) {
       console.warn('POST /auth error:', e);

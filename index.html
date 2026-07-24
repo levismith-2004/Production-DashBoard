@@ -1945,6 +1945,55 @@ option.primary-person::before { content: '★ '; }
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
+//  AUTH TRANSPORT
+//  Every call to our own server carries the session token. Wrapping
+//  fetch once here means no individual call site has to remember to.
+// ═══════════════════════════════════════════════════════════════════
+let sessionToken = null;
+try { sessionToken = sessionStorage.getItem('session-token') || null; } catch (e) { /* ignore */ }
+
+const _nativeFetch = window.fetch.bind(window);
+window.fetch = function (input, init) {
+  init = init || {};
+  const target = (typeof input === 'string') ? input : (input && input.url) || '';
+  // Only our own endpoints — never attach the token to third-party requests
+  const isOwnApi = target.startsWith('/');
+  if (isOwnApi && sessionToken) {
+    const headers = new Headers(init.headers || (typeof input === 'object' ? input.headers : undefined) || {});
+    if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + sessionToken);
+    init = Object.assign({}, init, { headers });
+  }
+  return _nativeFetch(input, init).then(res => {
+    // Session expired or missing → back to the login screen
+    if (isOwnApi && res.status === 401 && !target.startsWith('/auth')) {
+      handleSessionExpired();
+    }
+    return res;
+  });
+};
+
+function setSessionToken(token) {
+  sessionToken = token || null;
+  try {
+    if (token) sessionStorage.setItem('session-token', token);
+    else sessionStorage.removeItem('session-token');
+  } catch (e) { /* ignore */ }
+}
+
+let sessionExpiredShown = false;
+function handleSessionExpired() {
+  if (sessionExpiredShown) return;
+  sessionExpiredShown = true;
+  setSessionToken(null);
+  const login = document.getElementById('login-screen');
+  const app = document.getElementById('app');
+  if (login) login.style.display = '';
+  if (app) app.classList.remove('visible');
+  const err = document.getElementById('login-error');
+  if (err) { err.style.color = ''; err.textContent = 'Session expired. Please sign in again.'; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════════
 let pcoAppId = '';
@@ -2124,10 +2173,11 @@ async function doLogin() {
     });
     const data = await res.json();
     if (data.ok) {
+      setSessionToken(data.token || null);
+      sessionExpiredShown = false;
       if (data.mode === 'supabase') {
         authToken = data.token || null;
         authEmail = data.email || email;
-        try { sessionStorage.setItem('auth-token', authToken); } catch (e) { /* ignore */ }
         try { sessionStorage.setItem('auth-email', authEmail); } catch (e) { /* ignore */ }
       }
       await startApp(data);
