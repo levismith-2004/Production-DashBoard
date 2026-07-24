@@ -366,13 +366,28 @@ a { color: var(--accent); text-decoration: none; }
 .conf-meta { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .pos-dot.pos-sound { background: #38BDF8; } .pos-dot.pos-media { background: #A78BFA; }
 .pos-dot.pos-lighting { background: #FBBF24; } .pos-dot.pos-runner { background: #4ADE80; }
-.w-clock-display, #clock-display {
-  font-family: var(--mono); font-size: 84px; font-weight: 600;
-  color: var(--accent); letter-spacing: -3px; line-height: 1;
-  margin-bottom: 6px;
+/* The clock scales to whatever size its widget is, so it can't clip.
+   cqmin = the smaller of the container's width/height, so it shrinks
+   whether the widget is made narrow or short. */
+.w-clock-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; height: 100%;
+  position: relative; container-type: size; overflow: hidden;
 }
-.w-clock-display .secs, #clock-display .secs { font-size: 48px; color: var(--muted); }
-.w-clock-date, #clock-date { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
+.w-clock-display, #clock-display {
+  font-family: var(--mono); font-weight: 600;
+  font-size: clamp(24px, 26cqmin, 84px);
+  color: var(--accent); letter-spacing: -3px; line-height: 1;
+  margin-bottom: 6px; white-space: nowrap;
+}
+.w-clock-display .secs, #clock-display .secs {
+  font-size: clamp(14px, 15cqmin, 48px); color: var(--muted);
+}
+.w-clock-ampm { font-size: clamp(11px, 8cqmin, 24px); color: var(--muted); font-family: var(--mono); }
+.w-clock-date, #clock-date {
+  font-family: var(--mono); color: var(--muted); margin-top: 8px;
+  font-size: clamp(10px, 4cqmin, 13px); white-space: nowrap;
+}
 .clock-format-btn {
   position: absolute; top: 8px; right: 8px; font-family: var(--mono);
   font-size: 11px; padding: 3px 8px; border-radius: var(--radius-sm);
@@ -380,7 +395,6 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--muted); cursor: pointer; transition: all .15s; z-index: 2;
 }
 .clock-format-btn:hover { color: var(--accent); border-color: var(--accent); }
-.w-clock-ampm { font-size: 24px; color: var(--muted); font-family: var(--mono); }
 .mini-cal-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; font-size: 13px; font-weight: 600;
@@ -955,8 +969,7 @@ option.primary-person::before { content: '★ '; }
   .mob-inv-card-actions .btn { flex: 1; justify-content: center; padding: 9px; font-size: 13px; }
 
   /* ── Clock bigger and bolder on mobile ── */
-  .w-clock-display, #clock-display { font-size: 52px; }
-  .w-clock-display .secs, #clock-display .secs { font-size: 32px; }
+  /* clock sizing is handled by container queries above */
 
   /* ── Week service rows stack ── */
   .week-service-row { flex-direction: column; gap: 6px; }
@@ -1348,7 +1361,7 @@ option.primary-person::before { content: '★ '; }
       </template>
 
       <template id="tpl-clock">
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%;position:relative">
+        <div class="w-clock-wrap">
           <button class="clock-format-btn" data-act="clock-format" title="Toggle 12/24 hour">12h</button>
           <div class="w-clock-display clock-display-style">
             <span class="w-clock-hm">00:00</span><span class="secs">:<span class="w-clock-s">00</span></span><span class="w-clock-ampm clock-ampm-style"></span>
