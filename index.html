@@ -1076,13 +1076,25 @@ option.primary-person::before { content: '★ '; }
   font-family: var(--mono); font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
 }
-.patch-table { width: 100%; border-collapse: collapse; }
+.patch-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .patch-table th {
   text-align: left; font-size: 10px; font-weight: 700; color: var(--muted2);
   text-transform: uppercase; letter-spacing: .06em; padding: 6px 10px;
   background: var(--surface); border-bottom: 1px solid var(--border);
-  white-space: nowrap;
+  white-space: nowrap; position: relative; overflow: hidden;
 }
+.col-resize {
+  position: absolute; top: 0; right: 0; width: 7px; height: 100%;
+  cursor: col-resize; user-select: none;
+}
+.col-resize::after {
+  content: ''; position: absolute; top: 20%; right: 3px; width: 1px; height: 60%;
+  background: var(--border2);
+}
+.col-resize:hover::after, .col-resize.dragging::after {
+  background: var(--accent); width: 2px;
+}
+.patch-table td { overflow: hidden; }
 .patch-table td {
   padding: 0; border-bottom: 1px solid var(--border); vertical-align: middle;
 }
@@ -1108,7 +1120,7 @@ option.primary-person::before { content: '★ '; }
 .patch-col-trap   { width: 92px; }
 .patch-col-colour { width: 46px; }
 .patch-col-label  { width: 16%; }
-.patch-col-source { width: 18%; }
+.patch-col-source { width: 12%; }
 .patch-col-phantom{ width: 52px; }
 .patch-col-gain   { width: 70px; }
 .patch-col-dest   { width: 20%; }
@@ -1596,6 +1608,7 @@ option.primary-person::before { content: '★ '; }
             <button class="btn btn-ghost btn-sm" onclick="loadPatch()">↺ Refresh</button>
             <span id="patch-save-status" style="font-size:12px;color:var(--muted)"></span>
             <button class="btn btn-ghost btn-sm" onclick="savePatch()">💾 Save</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetPatchColumns()" title="Reset column widths">⟲ Columns</button>
             <button class="btn btn-primary btn-sm" onclick="downloadPatchPDF()">↓ PDF</button>
           </div>
           <div id="patch-container"><div class="state-msg"><div class="spinner"></div><br>Loading patch sheet…</div></div>
@@ -5614,6 +5627,61 @@ function rowColour(r) {
   return r.colour || TRAP_COLOURS[r.trap] || '';
 }
 
+// ── Resizable patch columns (per device) ─────────────────────────
+let patchColWidths = {};
+try { patchColWidths = JSON.parse(localStorage.getItem('patch-col-widths') || '{}'); }
+catch (e) { patchColWidths = {}; }
+
+// Inline width override for a <col>, if the user has dragged it
+function colW(name) {
+  return patchColWidths[name] ? ` style="width:${patchColWidths[name]}px"` : '';
+}
+// Header cell with a drag handle on its right edge
+function thResize(name, label, extraAttrs) {
+  return `<th${extraAttrs || ''}>${label}<span class="col-resize" data-col="${name}"></span></th>`;
+}
+
+function initPatchResizers() {
+  document.querySelectorAll('#patch-container .col-resize').forEach(handle => {
+    handle.onmousedown = (e) => {
+      e.preventDefault();
+      const name = handle.dataset.col;
+      const th = handle.parentElement;
+      const table = handle.closest('table');
+      const col = table.querySelector(`col[data-col="${name}"]`);
+      if (!col) return;
+      const startX = e.clientX;
+      const startW = th.offsetWidth;
+      handle.classList.add('dragging');
+
+      const onMove = (ev) => {
+        const w = Math.max(40, startW + (ev.clientX - startX));
+        // Apply to every table on the page that has this column
+        document.querySelectorAll(`#patch-container col[data-col="${name}"]`)
+          .forEach(c => { c.style.width = w + 'px'; });
+        patchColWidths[name] = w;
+      };
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        try { localStorage.setItem('patch-col-widths', JSON.stringify(patchColWidths)); }
+        catch (e) { /* ignore */ }
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+  });
+}
+
+// Put every column back to its default width
+function resetPatchColumns() {
+  patchColWidths = {};
+  try { localStorage.removeItem('patch-col-widths'); } catch (e) { /* ignore */ }
+  renderPatch();
+  toast('Column widths reset.', 'success');
+}
+
 // ── Load ─────────────────────────────────────────────────────────
 async function loadPatch() {
   try {
@@ -5679,25 +5747,29 @@ function renderPatch() {
     '16× outputs', patchData.gx_outputs);
 
   container.innerHTML = html;
+  initPatchResizers();
 }
 
 function patchSectionInput(key, title, sub, rows, showPhantom) {
   const colgroup = `<colgroup>
-    <col class="patch-col-num"/>
-    <col class="patch-col-label"/>
-    <col class="patch-col-source"/>
-    <col class="patch-col-trap"/>
-    <col class="patch-col-colour"/>
-    ${showPhantom ? '<col class="patch-col-phantom"/>' : ''}
-    <col class="patch-col-gain"/>
-    <col class="patch-col-notes"/>
+    <col class="patch-col-num" data-col="num"${colW('num')}/>
+    <col class="patch-col-label" data-col="label"${colW('label')}/>
+    <col class="patch-col-source" data-col="source"${colW('source')}/>
+    <col class="patch-col-trap" data-col="trap"${colW('trap')}/>
+    <col class="patch-col-colour" data-col="colour"${colW('colour')}/>
+    ${showPhantom ? `<col class="patch-col-phantom" data-col="phantom"${colW('phantom')}/>` : ''}
+    <col class="patch-col-gain" data-col="gain"${colW('gain')}/>
+    <col class="patch-col-notes" data-col="notes"${colW('notes')}/>
   </colgroup>`;
   const thead = `<tr>
-    <th style="text-align:right">#</th>
-    <th>Label</th><th>Source</th>
-    <th>Trap</th><th></th>
-    ${showPhantom ? '<th class="patch-phantom">48V</th>' : ''}
-    <th>Gain</th><th>Notes</th>
+    ${thResize('num', '#', ' style="text-align:right"')}
+    ${thResize('label', 'Label')}
+    ${thResize('source', 'Source')}
+    ${thResize('trap', 'Trap')}
+    ${thResize('colour', '')}
+    ${showPhantom ? thResize('phantom', '48V', ' class="patch-phantom"') : ''}
+    ${thResize('gain', 'Gain')}
+    <th>Notes</th>
   </tr>`;
   const rowsHtml = rows.map((r, i) => {
     const colour = rowColour(r);
@@ -5740,14 +5812,16 @@ function patchSectionInput(key, title, sub, rows, showPhantom) {
 
 function patchSectionOutput(key, title, sub, rows) {
   const colgroup = `<colgroup>
-    <col class="patch-col-num"/>
-    <col class="patch-col-label"/>
-    <col class="patch-col-dest"/>
-    <col class="patch-col-notes"/>
+    <col class="patch-col-num" data-col="num"${colW('num')}/>
+    <col class="patch-col-label" data-col="label"${colW('label')}/>
+    <col class="patch-col-dest" data-col="dest"${colW('dest')}/>
+    <col class="patch-col-notes" data-col="notes"${colW('notes')}/>
   </colgroup>`;
   const thead = `<tr>
-    <th style="text-align:right">#</th>
-    <th>Label</th><th>Destination</th><th>Notes</th>
+    ${thResize('num', '#', ' style="text-align:right"')}
+    ${thResize('label', 'Label')}
+    ${thResize('dest', 'Destination')}
+    <th>Notes</th>
   </tr>`;
   const rowsHtml = rows.map(r => `
     <tr>
