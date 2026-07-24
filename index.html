@@ -77,6 +77,10 @@ a { color: var(--accent); text-decoration: none; }
 .login-card input:focus { border-color: var(--accent); }
 .login-card .btn-primary { width: 100%; }
 .login-error { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 20px; }
+.login-links { margin-top: 12px; text-align: center; }
+.login-links a { color: var(--accent); font-size: 13px; text-decoration: none; }
+.login-links a:hover { text-decoration: underline; }
+.login-hint { margin-top: 10px; font-size: 11px; color: var(--muted2); text-align: center; }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
@@ -1163,9 +1167,37 @@ option.primary-person::before { content: '★ '; }
   <div class="login-card">
     <div class="login-logo">🎛️</div>
     <h1>Production Dashboard</h1>
-    <p>Enter the password to continue</p>
-    <input type="password" id="login-pw" placeholder="Password" autocomplete="current-password"/>
-    <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
+
+    <!-- Sign in -->
+    <div id="login-view-signin">
+      <p>Sign in to continue</p>
+      <input type="email" id="login-email" placeholder="Email" autocomplete="username"/>
+      <input type="password" id="login-pw" placeholder="Password" autocomplete="current-password"/>
+      <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
+      <div class="login-links">
+        <a href="#" onclick="showLoginView('forgot');return false">Forgot password?</a>
+      </div>
+      <div class="login-hint">Leave email blank to use the shared password.</div>
+    </div>
+
+    <!-- Forgot password -->
+    <div id="login-view-forgot" style="display:none">
+      <p>We'll email you a link to set a new password.</p>
+      <input type="email" id="forgot-email" placeholder="Email" autocomplete="username"/>
+      <button class="btn btn-primary" onclick="doForgotPassword()">Send reset link</button>
+      <div class="login-links">
+        <a href="#" onclick="showLoginView('signin');return false">Back to sign in</a>
+      </div>
+    </div>
+
+    <!-- Set new password (after clicking the emailed link) -->
+    <div id="login-view-reset" style="display:none">
+      <p>Choose a new password.</p>
+      <input type="password" id="reset-pw" placeholder="New password" autocomplete="new-password"/>
+      <input type="password" id="reset-pw2" placeholder="Confirm new password" autocomplete="new-password"/>
+      <button class="btn btn-primary" onclick="doSetNewPassword()">Save password</button>
+    </div>
+
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
@@ -2031,13 +2063,56 @@ function esc(str) {
 document.getElementById('login-pw').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
 });
+document.getElementById('login-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('forgot-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doForgotPassword();
+});
+document.getElementById('reset-pw2').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSetNewPassword();
+});
 
 // Everyone shares one account. Data is stored under this fixed name.
 const SHARED_ACCOUNT = 'shared';
 let currentUser = SHARED_ACCOUNT;
 let currentUserAdmin = false;
+let authToken = null;      // Supabase access token (null when using shared password)
+let authEmail = null;      // signed-in email, if any
+
+// Swap between the sign-in / forgot / reset panels on the login card
+function showLoginView(view) {
+  ['signin', 'forgot', 'reset'].forEach(v => {
+    const el = document.getElementById('login-view-' + v);
+    if (el) el.style.display = (v === view) ? '' : 'none';
+  });
+  const err = document.getElementById('login-error');
+  if (err) err.textContent = '';
+}
+
+// Everything that needs to happen once we're authenticated
+async function startApp(data) {
+  pcoAppId = data.appId || '';
+  pcoSecret = data.secret || '';
+  pcoAuth = btoa(`${pcoAppId}:${pcoSecret}`);
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  await loadUserData();
+  startClock();
+  initHomeGrid();
+  initLiveGrid();
+  initSettingsGrid();
+  loadPrimaryPeople();
+  initSettings();
+  if (pcoAppId && pcoSecret) {
+    await connectPCO();
+  }
+  loadInventory();
+  loadAnnouncements();
+}
 
 async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
   const pw = document.getElementById('login-pw').value;
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
@@ -2045,36 +2120,87 @@ async function doLogin() {
     const res = await fetch('/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw })
+      body: JSON.stringify({ email, password: pw })
     });
     const data = await res.json();
     if (data.ok) {
-      pcoAppId = data.appId || '';
-      pcoSecret = data.secret || '';
-      pcoAuth = btoa(`${pcoAppId}:${pcoSecret}`);
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('app').classList.add('visible');
-      // Load shared saved data (theme + layouts) before building
-      await loadUserData();
-      startClock();
-      initHomeGrid();
-      initLiveGrid();
-      initSettingsGrid();
-      loadPrimaryPeople();
-      initSettings();
-      if (pcoAppId && pcoSecret) {
-        await connectPCO();
+      if (data.mode === 'supabase') {
+        authToken = data.token || null;
+        authEmail = data.email || email;
+        try { sessionStorage.setItem('auth-token', authToken); } catch (e) { /* ignore */ }
+        try { sessionStorage.setItem('auth-email', authEmail); } catch (e) { /* ignore */ }
       }
-      loadInventory();
-      loadAnnouncements();
+      await startApp(data);
     } else {
-      errEl.textContent = 'Incorrect password.';
+      errEl.textContent = data.error || 'Incorrect email or password.';
     }
   } catch (e) {
     console.warn('Login error:', e);
     errEl.textContent = 'Connection error.';
   }
 }
+
+async function doForgotPassword() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  if (!email) { errEl.textContent = 'Enter your email address.'; return; }
+  try {
+    await fetch('/auth/forgot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, redirectTo: window.location.origin }),
+    });
+    errEl.style.color = 'var(--green)';
+    errEl.textContent = 'If that email has an account, a reset link is on its way. Check your spam folder too.';
+  } catch (e) {
+    errEl.textContent = 'Could not send reset email.';
+  }
+}
+
+async function doSetNewPassword() {
+  const pw = document.getElementById('reset-pw').value;
+  const pw2 = document.getElementById('reset-pw2').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.color = '';
+  errEl.textContent = '';
+  if (pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+  if (pw !== pw2) { errEl.textContent = 'Passwords do not match.'; return; }
+  if (!recoveryToken) { errEl.textContent = 'Reset link expired. Please request a new one.'; return; }
+  try {
+    const res = await fetch('/auth/set-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: recoveryToken, password: pw }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      recoveryToken = null;
+      history.replaceState(null, '', window.location.pathname);
+      showLoginView('signin');
+      errEl.style.color = 'var(--green)';
+      errEl.textContent = 'Password updated. Sign in with your new password.';
+    } else {
+      errEl.textContent = data.error || 'Could not update password.';
+    }
+  } catch (e) {
+    errEl.textContent = 'Could not update password.';
+  }
+}
+
+// Supabase sends people back from the reset email with the token in the URL hash
+let recoveryToken = null;
+(function detectRecoveryLink() {
+  const hash = window.location.hash || '';
+  if (hash.includes('type=recovery') && hash.includes('access_token=')) {
+    const params = new URLSearchParams(hash.replace(/^#/, ''));
+    recoveryToken = params.get('access_token');
+    if (recoveryToken) {
+      document.addEventListener('DOMContentLoaded', () => showLoginView('reset'));
+      if (document.readyState !== 'loading') showLoginView('reset');
+    }
+  }
+})();
 
 // ── Shared data (theme + home layouts) ─────────────────────────────
 let userData = { theme: null, homelayout: {} };

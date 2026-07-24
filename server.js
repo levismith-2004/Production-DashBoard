@@ -91,6 +91,77 @@ async function supabaseReadOrSeed(key, githubPath, fallback) {
   return fallback;
 }
 
+// ── Supabase Auth ────────────────────────────────────────────────────────────
+// Auth endpoints use the publishable (anon) key, not the secret key.
+// Publishable keys are designed to be public, so a default is safe here.
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
+  'sb_publishable_GTYis9vXmNnC8SdgA4Zf2A_1pfcv1w2';
+
+function supabaseAuthRequest(pathSuffix, method, bodyObj, bearerToken) {
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Content-Type': 'application/json',
+  };
+  if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
+  const body = bodyObj ? JSON.stringify(bodyObj) : undefined;
+  if (body) headers['Content-Length'] = Buffer.byteLength(body);
+  return httpsRequest({
+    hostname: SUPABASE_HOST,
+    path: '/auth/v1' + pathSuffix,
+    method,
+    headers,
+  }, body);
+}
+
+// Sign in with email + password. Returns {ok, token, email} or {ok:false, error}
+async function supabaseSignIn(email, password) {
+  const result = await supabaseAuthRequest('/token?grant_type=password', 'POST',
+    { email, password });
+  let parsed = {};
+  try { parsed = JSON.parse(result.body || '{}'); } catch (e) { /* ignore */ }
+  if (result.status >= 200 && result.status < 300 && parsed.access_token) {
+    return {
+      ok: true,
+      token: parsed.access_token,
+      email: (parsed.user && parsed.user.email) || email,
+      userId: (parsed.user && parsed.user.id) || null,
+    };
+  }
+  return {
+    ok: false,
+    error: parsed.error_description || parsed.msg || parsed.error || 'Invalid email or password',
+  };
+}
+
+// Verify an access token is still valid. Returns the user object or null.
+async function supabaseVerifyToken(token) {
+  if (!token) return null;
+  try {
+    const result = await supabaseAuthRequest('/user', 'GET', null, token);
+    if (result.status >= 200 && result.status < 300) {
+      return JSON.parse(result.body || '{}');
+    }
+  } catch (e) { console.warn('token verify error:', e.message); }
+  return null;
+}
+
+// Send a password reset email
+async function supabaseSendRecovery(email, redirectTo) {
+  const suffix = redirectTo ? `/recover?redirect_to=${encodeURIComponent(redirectTo)}` : '/recover';
+  const result = await supabaseAuthRequest(suffix, 'POST', { email });
+  // Supabase returns 200 even for unknown emails (prevents email enumeration)
+  return result.status >= 200 && result.status < 300;
+}
+
+// Set a new password using a recovery token from the emailed link
+async function supabaseUpdatePassword(token, newPassword) {
+  const result = await supabaseAuthRequest('/user', 'PUT', { password: newPassword }, token);
+  let parsed = {};
+  try { parsed = JSON.parse(result.body || '{}'); } catch (e) { /* ignore */ }
+  if (result.status >= 200 && result.status < 300) return { ok: true };
+  return { ok: false, error: parsed.msg || parsed.error_description || 'Could not update password' };
+}
+
 // ── Supabase Storage (PDF files) ─────────────────────────────────────────────
 // Upload a binary buffer to the storage bucket. Returns the public URL.
 function supabaseUpload(objectPath, buffer, contentType) {
@@ -1005,17 +1076,79 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── POST /auth ─────────────────────────────────────────────────────────
+  // Two ways in during the transition:
+  //   1. email + password  → real Supabase account
+  //   2. password only     → legacy shared APP_PASSWORD (safety net)
   if (pathname === '/auth' && method === 'POST') {
     try {
       const body = await readBody(req);
-      const { password } = JSON.parse(body);
-      if (APP_PASSWORD && password !== APP_PASSWORD) {
-        return jsonResponse(res, 401, { ok: false });
+      const { email, password } = JSON.parse(body);
+
+      if (email && supabaseEnabled()) {
+        const result = await supabaseSignIn(email, password);
+        if (!result.ok) {
+          return jsonResponse(res, 401, { ok: false, error: result.error });
+        }
+        return jsonResponse(res, 200, {
+          ok: true, mode: 'supabase', token: result.token,
+          email: result.email, userId: result.userId,
+          appId: PCO_APP_ID, secret: PCO_SECRET,
+        });
       }
-      return jsonResponse(res, 200, { ok: true, appId: PCO_APP_ID, secret: PCO_SECRET });
+
+      // Legacy shared password
+      if (APP_PASSWORD && password !== APP_PASSWORD) {
+        return jsonResponse(res, 401, { ok: false, error: 'Incorrect password' });
+      }
+      return jsonResponse(res, 200, {
+        ok: true, mode: 'legacy', appId: PCO_APP_ID, secret: PCO_SECRET,
+      });
     } catch (e) {
       console.warn('POST /auth error:', e);
       return jsonResponse(res, 500, { ok: false, error: e.message });
+    }
+  }
+
+  // ── POST /auth/forgot  body: {email} — send reset email ─────────────────
+  if (pathname === '/auth/forgot' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { email, redirectTo } = JSON.parse(body);
+      if (!supabaseEnabled()) return jsonResponse(res, 400, { ok: false, error: 'Auth not configured' });
+      if (!email) return jsonResponse(res, 400, { ok: false, error: 'Email required' });
+      await supabaseSendRecovery(email, redirectTo);
+      // Always report success — don't reveal whether an account exists
+      return jsonResponse(res, 200, { ok: true });
+    } catch (e) {
+      console.warn('POST /auth/forgot error:', e);
+      return jsonResponse(res, 500, { ok: false, error: e.message });
+    }
+  }
+
+  // ── POST /auth/set-password  body: {token, password} ────────────────────
+  if (pathname === '/auth/set-password' && method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { token, password } = JSON.parse(body);
+      if (!token || !password) return jsonResponse(res, 400, { ok: false, error: 'Missing token or password' });
+      if (password.length < 6) return jsonResponse(res, 400, { ok: false, error: 'Password must be at least 6 characters' });
+      const result = await supabaseUpdatePassword(token, password);
+      return jsonResponse(res, result.ok ? 200 : 400, result);
+    } catch (e) {
+      console.warn('POST /auth/set-password error:', e);
+      return jsonResponse(res, 500, { ok: false, error: e.message });
+    }
+  }
+
+  // ── GET /auth/check — is this token still valid? ────────────────────────
+  if (pathname === '/auth/check' && method === 'GET') {
+    try {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await supabaseVerifyToken(token);
+      return jsonResponse(res, 200, { ok: !!user, email: user ? user.email : null });
+    } catch (e) {
+      return jsonResponse(res, 200, { ok: false });
     }
   }
 
