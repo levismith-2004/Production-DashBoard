@@ -491,6 +491,13 @@ a { color: var(--accent); text-decoration: none; }
 .announcement-body { flex: 1; min-width: 0; }
 .announcement-msg { font-size: 14px; font-weight: 500; line-height: 1.5; }
 .announcement-meta { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+.asana-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px;
+  font-size: 10px; font-family: var(--mono); vertical-align: middle;
+}
+.asana-badge.done { background: rgba(74,222,128,.15); color: var(--green); }
+.asana-badge.open { background: var(--surface2); color: var(--muted); }
+.announcement-item.is-done .announcement-msg { text-decoration: line-through; opacity: .6; }
 .announcement-delete { color: var(--muted2); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; font-size: 16px; }
 .announcement-delete:hover { color: var(--red); background: var(--red-glow); }
 .ann-empty { font-size: 13px; color: var(--muted); font-style: italic; }
@@ -5093,14 +5100,29 @@ function toggleSidebar() {
 // ═══════════════════════════════════════════════════════════════════
 let announcements = [];
 
+let asanaStatuses = {};   // gid -> completed bool
+
 async function loadAnnouncements() {
   try {
     const res = await fetch('/announcements');
     announcements = await res.json();
     renderAnnouncements();
+    // Pull Asana completion state (non-blocking; refreshes the view when it lands)
+    loadAsanaStatuses();
   } catch (e) {
     console.warn('loadAnnouncements error:', e);
   }
+}
+
+async function loadAsanaStatuses() {
+  try {
+    const res = await fetch('/announcements/asana-status');
+    const data = await res.json();
+    if (data.enabled && data.statuses) {
+      asanaStatuses = data.statuses;
+      renderAnnouncements();
+    }
+  } catch (e) { /* Asana optional; ignore */ }
 }
 
 function renderAnnouncements() {
@@ -5113,18 +5135,26 @@ function renderAnnouncementsInto(el) {
     el.innerHTML = '<div class="ann-empty">No announcements. Click Post to add one.</div>';
     return;
   }
-  el.innerHTML = announcements.map(a => `
-    <div class="announcement-item">
+  el.innerHTML = announcements.map(a => {
+    let badge = '';
+    if (a.asanaGid) {
+      const done = asanaStatuses[a.asanaGid];
+      badge = done === true
+        ? '<span class="asana-badge done" title="Completed in Asana">✓ Asana</span>'
+        : '<span class="asana-badge open" title="Open in Asana">◷ Asana</span>';
+    }
+    return `
+    <div class="announcement-item${a.asanaGid && asanaStatuses[a.asanaGid] ? ' is-done' : ''}">
       <div class="announcement-body">
         <div class="announcement-msg">${esc(a.message)}</div>
-        <div class="announcement-meta">${esc(a.author || 'Team')} · ${a.date || ''}</div>
+        <div class="announcement-meta">${esc(a.author || 'Team')} · ${a.date || ''} ${badge}</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="btn btn-ghost btn-sm" onclick="openAnnouncementModal('${a.id}')">Edit</button>
         <button class="announcement-delete" onclick="deleteAnnouncement('${a.id}')" title="Delete">✕</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function openAnnouncementModal(editId) {

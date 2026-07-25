@@ -10,6 +10,12 @@ const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const PCO_APP_ID = process.env.PCO_APP_ID || '';
 const PCO_SECRET = process.env.PCO_SECRET || '';
 
+// ── Asana (Flags → tasks) ────────────────────────────────────────────────────
+const ASANA_TOKEN = process.env.ASANA_TOKEN || '';
+const ASANA_WORKSPACE = process.env.ASANA_WORKSPACE || '';
+const ASANA_PROJECT = process.env.ASANA_PROJECT || '';
+function asanaEnabled() { return !!(ASANA_TOKEN && ASANA_WORKSPACE && ASANA_PROJECT); }
+
 // ── Supabase config (data + file storage) ────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL || '';        // https://xxxx.supabase.co
 const SUPABASE_KEY = process.env.SUPABASE_KEY || '';        // sb_secret_... (server-side only)
@@ -159,6 +165,87 @@ async function supabaseUpdatePassword(token, newPassword) {
   try { parsed = JSON.parse(result.body || '{}'); } catch (e) { /* ignore */ }
   if (result.status >= 200 && result.status < 300) return { ok: true };
   return { ok: false, error: parsed.msg || parsed.error_description || 'Could not update password' };
+}
+
+// ── Asana API ────────────────────────────────────────────────────────────────
+function asanaRequest(method, apiPath, bodyObj) {
+  return new Promise((resolve, reject) => {
+    const body = bodyObj ? JSON.stringify(bodyObj) : undefined;
+    const headers = {
+      'Authorization': `Bearer ${ASANA_TOKEN}`,
+      'Accept': 'application/json',
+    };
+    if (body) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(body);
+    }
+    const r = https.request({
+      hostname: 'app.asana.com',
+      path: '/api/1.0' + apiPath,
+      method,
+      headers,
+    }, (resp) => {
+      let data = '';
+      resp.on('data', c => { data += c; });
+      resp.on('end', () => {
+        let parsed = {};
+        try { parsed = JSON.parse(data || '{}'); } catch (e) { /* ignore */ }
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+          resolve(parsed.data);
+        } else {
+          const msg = (parsed.errors && parsed.errors[0] && parsed.errors[0].message) || data || 'Asana error';
+          reject(new Error(`Asana ${resp.statusCode}: ${msg}`));
+        }
+      });
+    });
+    r.on('error', reject);
+    if (body) r.write(body);
+    r.end();
+  });
+}
+
+// Create a task from a flag. Returns the new task's gid, or null on failure.
+async function asanaCreateTask(flag) {
+  if (!asanaEnabled()) return null;
+  try {
+    const msg = flag.message || flag.title || flag.body || 'Flag from Production Dashboard';
+    const notes = flag.author ? `Posted by ${flag.author} via Production Dashboard` : 'Posted via Production Dashboard';
+    const task = await asanaRequest('POST', '/tasks', {
+      data: {
+        workspace: ASANA_WORKSPACE,
+        projects: [ASANA_PROJECT],
+        name: msg.length > 120 ? msg.slice(0, 117) + '…' : msg,
+        notes: msg + '\n\n' + notes,
+      },
+    });
+    return task && task.gid ? task.gid : null;
+  } catch (e) {
+    console.warn('asanaCreateTask failed:', e.message);
+    return null;  // never let an Asana hiccup block posting a flag
+  }
+}
+
+// Mark a task complete (used when a flag is deleted)
+async function asanaCompleteTask(gid) {
+  if (!asanaEnabled() || !gid) return;
+  try {
+    await asanaRequest('PUT', `/tasks/${gid}`, { data: { completed: true } });
+  } catch (e) {
+    console.warn('asanaCompleteTask failed:', e.message);
+  }
+}
+
+// Fetch completion state for a set of task gids. Returns { gid: bool }.
+async function asanaFetchStatuses(gids) {
+  const out = {};
+  if (!asanaEnabled() || !gids.length) return out;
+  await Promise.all(gids.map(async (gid) => {
+    try {
+      const t = await asanaRequest('GET', `/tasks/${gid}?opt_fields=completed`);
+      if (t) out[gid] = !!t.completed;
+    } catch (e) { /* task may have been deleted in Asana; skip */ }
+  }));
+  return out;
 }
 
 // ── Supabase Storage (PDF files) ─────────────────────────────────────────────
@@ -482,6 +569,9 @@ async function announcementsRead() {
 
 async function announcementsAdd(ann) {
   ann.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  // Mirror the flag into Asana as a task (non-blocking on failure)
+  const gid = await asanaCreateTask(ann);
+  if (gid) ann.asanaGid = gid;
   if (supabaseEnabled()) {
     const items = await announcementsRead();
     items.unshift(ann);
@@ -502,6 +592,13 @@ async function announcementsAdd(ann) {
 }
 
 async function announcementsDelete(id) {
+  // Complete the linked Asana task (keeps history rather than destroying it)
+  try {
+    const all = await announcementsRead();
+    const target = all.find(a => a.id === id);
+    if (target && target.asanaGid) await asanaCompleteTask(target.asanaGid);
+  } catch (e) { /* don't block deletion on Asana */ }
+
   if (supabaseEnabled()) {
     const items = await announcementsRead();
     await supabaseSet('announcements', items.filter(a => a.id !== id));
@@ -1335,6 +1432,20 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.warn('GET /announcements error:', e);
       return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── GET /announcements/asana-status — completion state of linked tasks ──
+  if (pathname === '/announcements/asana-status' && method === 'GET') {
+    try {
+      if (!asanaEnabled()) return jsonResponse(res, 200, { enabled: false, statuses: {} });
+      const items = await announcementsRead();
+      const gids = items.filter(a => a.asanaGid).map(a => a.asanaGid);
+      const statuses = await asanaFetchStatuses(gids);
+      return jsonResponse(res, 200, { enabled: true, statuses });
+    } catch (e) {
+      console.warn('GET /announcements/asana-status error:', e);
+      return jsonResponse(res, 200, { enabled: false, statuses: {}, error: e.message });
     }
   }
 
