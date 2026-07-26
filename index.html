@@ -280,6 +280,35 @@ a { color: var(--accent); text-decoration: none; }
 .process-info { flex: 1; min-width: 0; }
 .process-title { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
 .process-meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+/* ProPresenter page */
+.pp-conn { font-size: 12px; font-family: var(--mono); padding: 4px 12px; border-radius: 12px; font-weight: 600; }
+.pp-conn-on { background: rgba(74,222,128,.15); color: var(--green); }
+.pp-conn-off { background: var(--surface2); color: var(--muted); }
+.pp-slides { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 18px; }
+.pp-slide { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius); padding: 20px; min-height: 140px; display: flex; flex-direction: column; }
+.pp-slide-current { border-color: var(--accent); }
+.pp-slide-tag { font-size: 10px; font-family: var(--mono); letter-spacing: .1em; color: var(--muted); margin-bottom: 10px; }
+.pp-slide-current .pp-slide-tag { color: var(--accent); }
+.pp-slide-text { font-size: 22px; font-weight: 500; line-height: 1.35; white-space: pre-wrap; overflow-wrap: break-word; flex: 1; }
+.pp-slide-next .pp-slide-text { font-size: 16px; color: var(--muted); }
+.pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.pp-field { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.pp-field-label { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted2); margin-bottom: 4px; }
+.pp-field-val { font-size: 14px; font-weight: 500; overflow-wrap: break-word; }
+.pp-section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 8px 0 10px; }
+.pp-timers { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.pp-timer { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 12px; border-left: 3px solid var(--border2); }
+.pp-timer-running { border-left-color: var(--green); }
+.pp-timer-overrun { border-left-color: var(--red); }
+.pp-timer-stopped { border-left-color: var(--muted2); }
+.pp-timer-name { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.pp-timer-time { font-size: 22px; font-family: var(--mono); font-weight: 600; }
+.pp-timer-state { font-size: 10px; font-family: var(--mono); color: var(--muted2); text-transform: uppercase; margin-top: 2px; }
+.pp-message { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 8px; font-size: 14px; }
+.pp-system { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 12px; }
+.pp-system-toggle { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; font-family: var(--font); padding: 4px 0; }
+.pp-system-toggle:hover { color: var(--text); }
+.pp-system-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
 /* Set List tab */
 .setlist-date-heading { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--accent); }
 .setlist-service { margin-bottom: 28px; }
@@ -872,6 +901,7 @@ option.primary-person::before { content: '★ '; }
 @media (max-width: 768px) {
   :root { --topbar-h: 48px; --mob-nav-h: 72px; }
   .setlist-grid { grid-template-columns: 1fr; }
+  .pp-slides { grid-template-columns: 1fr; }
   .setlist-card-songs { grid-column: span 1; }
 
   /* ── Bottom nav ── */
@@ -1288,6 +1318,7 @@ option.primary-person::before { content: '★ '; }
       <button class="tab-btn" onclick="switchTab('audio')" data-tab="audio">Audio</button>
       <button class="tab-btn" onclick="switchTab('processes')" data-tab="processes">Processes</button>
       <button class="tab-btn" onclick="switchTab('setlist')" data-tab="setlist">Set List</button>
+      <button class="tab-btn" onclick="switchTab('propresenter')" data-tab="propresenter">ProPresenter</button>
       <div class="tab-spacer"></div>
       <div id="connection-status">
         <div class="status-dot" id="conn-dot"></div>
@@ -1694,6 +1725,18 @@ option.primary-person::before { content: '★ '; }
             <div id="sf-nodes" style="position:absolute;inset:0"></div>
           </div>
         </div>
+      </div>
+
+      <!-- ── ProPresenter ──────────────────────────────────── -->
+      <div class="tab-panel" id="panel-propresenter">
+        <div class="section-header">
+          <div>
+            <div class="section-title">ProPresenter</div>
+            <div class="section-sub">Live output from KCCs-Studio</div>
+          </div>
+          <div id="pp-conn" class="pp-conn pp-conn-off">Disconnected</div>
+        </div>
+        <div id="pp-content" style="margin-top:16px"><div class="state-msg">Connecting…</div></div>
       </div>
 
       <!-- ── Set List ──────────────────────────────────────── -->
@@ -5070,6 +5113,7 @@ function switchTab(tabId) {
   if (tabId === 'audio') { loadPatch(); loadSignalFlow(); }
   if (tabId === 'processes') loadProcesses();
   if (tabId === 'setlist') loadSetList();
+  if (tabId === 'propresenter') startPropresenter(); else stopPropresenter();
   if (tabId === 'home') { loadAnnouncements(); }
   if (tabId === 'live' && liveGrid) {
     // Grid was likely init'd while hidden — nudge it to recalc and refresh data
@@ -6717,6 +6761,126 @@ async function buildSetListService(svc) {
         ${teamCards}
       </div>
     </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PROPRESENTER — live output page
+// ═══════════════════════════════════════════════════════════════════
+let ppPollTimer = null;
+let ppSystemOpen = false;
+
+function startPropresenter() {
+  stopPropresenter();
+  loadPropresenter();
+  ppPollTimer = setInterval(loadPropresenter, 1500);
+}
+function stopPropresenter() {
+  if (ppPollTimer) { clearInterval(ppPollTimer); ppPollTimer = null; }
+}
+
+async function loadPropresenter() {
+  try {
+    const res = await fetch('/propresenter');
+    const d = await res.json();
+    renderPropresenter(d);
+  } catch (e) {
+    console.warn('loadPropresenter error:', e);
+  }
+}
+
+function ppField(label, value) {
+  return `<div class="pp-field"><div class="pp-field-label">${label}</div><div class="pp-field-val">${value}</div></div>`;
+}
+
+function renderPropresenter(d) {
+  const conn = document.getElementById('pp-conn');
+  const content = document.getElementById('pp-content');
+  if (!content) return;
+
+  if (!d || d.connected === false) {
+    if (conn) { conn.className = 'pp-conn pp-conn-off'; conn.textContent = d && d.stale ? 'Bridge offline' : 'Disconnected'; }
+    content.innerHTML = `<div class="state-msg">No live data. The bridge script isn't running or can't reach ProPresenter.<br><span style="font-size:12px;color:var(--muted2)">Start pp-bridge.js on a machine at church.</span></div>`;
+    return;
+  }
+  if (conn) { conn.className = 'pp-conn pp-conn-on'; conn.textContent = 'Live'; }
+
+  const cur = d.slide && d.slide.current;
+  const nxt = d.slide && d.slide.next;
+  const curText = cur ? (cur.text || cur.label || '—') : '—';
+  const nxtText = nxt ? (nxt.text || nxt.label || '—') : '—';
+
+  // Slides — the headline
+  let html = `<div class="pp-slides">
+    <div class="pp-slide pp-slide-current">
+      <div class="pp-slide-tag">CURRENT</div>
+      <div class="pp-slide-text">${esc(curText)}</div>
+    </div>
+    <div class="pp-slide pp-slide-next">
+      <div class="pp-slide-tag">NEXT</div>
+      <div class="pp-slide-text">${esc(nxtText)}</div>
+    </div>
+  </div>`;
+
+  // Live status grid
+  const p = d.presentation || {};
+  const pos = (p.index != null && p.total != null) ? `${p.index + 1} / ${p.total}`
+    : (p.index != null ? `${p.index + 1}` : '—');
+  const t = d.transport;
+  const playing = t ? (t.playing ? `▶ ${esc(t.name || '')}` : '❚❚ Paused') : '—';
+  const cap = d.capture;
+  const capText = cap ? (cap.status === 'active'
+    ? `<span style="color:var(--red)">● Recording ${esc(cap.time || '')}</span>` : 'Inactive') : '—';
+
+  html += `<div class="pp-grid">
+    ${ppField('Presentation', esc(p.name || '—'))}
+    ${ppField('Slide', pos)}
+    ${ppField('Playlist', d.playlist ? esc(d.playlist.name || '') + (d.playlist.item ? ' → ' + esc(d.playlist.item) : '') : '—')}
+    ${ppField('Output', playing)}
+    ${ppField('Look', esc(d.look || '—'))}
+    ${ppField('Capture', capText)}
+  </div>`;
+
+  // Timers
+  if (d.timers && d.timers.length) {
+    html += `<div class="pp-section-title">Timers</div><div class="pp-timers">`;
+    d.timers.forEach(tm => {
+      const stateCls = tm.state === 'running' ? 'running' : tm.state === 'overrun' ? 'overrun' : 'stopped';
+      html += `<div class="pp-timer pp-timer-${stateCls}">
+        <div class="pp-timer-name">${esc(tm.name || '')}</div>
+        <div class="pp-timer-time">${esc(tm.time || '')}</div>
+        <div class="pp-timer-state">${esc(tm.state || '')}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Stage message / active messages
+  const msgs = [];
+  if (d.stageMessage) msgs.push(d.stageMessage);
+  if (d.messages && d.messages.length) msgs.push(...d.messages);
+  if (msgs.length) {
+    html += `<div class="pp-section-title">Messages</div>`;
+    msgs.forEach(m => { html += `<div class="pp-message">${esc(m)}</div>`; });
+  }
+
+  // System info (collapsed) — the static stuff
+  html += `<div class="pp-system">
+    <button class="pp-system-toggle" onclick="ppSystemOpen=!ppSystemOpen;renderPropresenter(window._ppLast)">
+      ${ppSystemOpen ? '▾' : '▸'} System info
+    </button>`;
+  if (ppSystemOpen) {
+    const layers = d.layers || {};
+    const layerList = Object.keys(layers).filter(k => layers[k]).join(', ') || 'none';
+    html += `<div class="pp-system-body">
+      ${ppField('Active layers', esc(layerList))}
+      ${ppField('Audio', d.audio ? (d.audio.playing ? '▶ ' : '❚❚ ') + esc(d.audio.name || '') : '—')}
+      ${ppField('Last update', d.updatedAt ? new Date(d.updatedAt).toLocaleTimeString() : '—')}
+    </div>`;
+  }
+  html += `</div>`;
+
+  window._ppLast = d;
+  content.innerHTML = html;
 }
 
 // Apply saved theme on page load

@@ -16,6 +16,11 @@ const ASANA_WORKSPACE = process.env.ASANA_WORKSPACE || '';
 const ASANA_PROJECT = process.env.ASANA_PROJECT || '';
 function asanaEnabled() { return !!(ASANA_TOKEN && ASANA_WORKSPACE && ASANA_PROJECT); }
 
+// ── ProPresenter bridge ──────────────────────────────────────────────────────
+// The bridge script runs headless at church and pushes live data here using
+// this shared key (it has no user login). Set PROPRESENTER_KEY in Railway.
+const PROPRESENTER_KEY = process.env.PROPRESENTER_KEY || '';
+
 // ── Supabase config (data + file storage) ────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL || '';        // https://xxxx.supabase.co
 const SUPABASE_KEY = process.env.SUPABASE_KEY || '';        // sb_secret_... (server-side only)
@@ -963,6 +968,7 @@ const TOKEN_CACHE_MS = 1000 * 60 * 5;
 const PUBLIC_PATHS = new Set([
   '/auth', '/auth/forgot', '/auth/set-password', '/auth/check',
   '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/config.js',
+  '/propresenter/push', // has its own PROPRESENTER_KEY check
 ]);
 
 function bearerFrom(req) {
@@ -1421,6 +1427,43 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, 200, { ok: true });
     } catch (e) {
       console.warn('POST /patch/save error:', e);
+      return jsonResponse(res, 500, { error: e.message });
+    }
+  }
+
+  // ── POST /propresenter/push — bridge writes live data here ──────────────
+  if (pathname === '/propresenter/push' && method === 'POST') {
+    try {
+      const key = req.headers['x-pp-key'] || '';
+      if (!PROPRESENTER_KEY || key !== PROPRESENTER_KEY) {
+        return jsonResponse(res, 401, { ok: false, error: 'Bad key' });
+      }
+      const body = await readBody(req);
+      const data = JSON.parse(body);
+      data.updatedAt = new Date().toISOString();
+      if (supabaseEnabled()) {
+        await supabaseSet('propresenter', data);
+      }
+      return jsonResponse(res, 200, { ok: true });
+    } catch (e) {
+      console.warn('POST /propresenter/push error:', e);
+      return jsonResponse(res, 500, { ok: false, error: e.message });
+    }
+  }
+
+  // ── GET /propresenter — dashboard reads live data ───────────────────────
+  if (pathname === '/propresenter' && method === 'GET') {
+    try {
+      if (!supabaseEnabled()) return jsonResponse(res, 200, { connected: false });
+      const data = await supabaseGet('propresenter');
+      if (!data) return jsonResponse(res, 200, { connected: false });
+      // Consider the feed stale if the bridge hasn't pushed in 15s
+      const age = Date.now() - new Date(data.updatedAt || 0).getTime();
+      data.stale = age > 15000;
+      data.connected = !data.stale;
+      return jsonResponse(res, 200, data);
+    } catch (e) {
+      console.warn('GET /propresenter error:', e);
       return jsonResponse(res, 500, { error: e.message });
     }
   }
