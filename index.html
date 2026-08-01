@@ -309,6 +309,18 @@ a { color: var(--accent); text-decoration: none; }
 .pp-system-toggle { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; font-family: var(--font); padding: 4px 0; }
 .pp-system-toggle:hover { color: var(--text); }
 .pp-system-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
+/* ProPresenter widgets */
+.pp-w-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); display: inline-block; }
+.pp-w-dot.on { background: var(--green); }
+.pp-w-dot.off { background: var(--muted2); }
+.pp-w-slidebox { flex: 1; min-height: 0; overflow: auto; font-size: 20px; font-weight: 500;
+  line-height: 1.35; white-space: pre-wrap; overflow-wrap: break-word; display: flex; align-items: center; }
+.pp-w-next { font-size: 16px; color: var(--muted); }
+.pp-w-big { font-size: 34px; font-weight: 600; font-family: var(--mono); text-align: center; flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.pp-w-sub { font-size: 12px; color: var(--muted); font-weight: 400; font-family: var(--font); margin-top: 4px; }
+.pp-w-mid { font-size: 16px; font-weight: 500; flex: 1; display: flex; align-items: center;
+  overflow-wrap: break-word; min-width: 0; }
 /* Set List tab */
 .setlist-date-heading { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--accent); }
 .setlist-service { margin-bottom: 28px; }
@@ -1396,6 +1408,39 @@ option.primary-person::before { content: '★ '; }
           </div>
           <button class="btn btn-primary" onclick="switchTab('departments')">Open →</button>
         </div>
+      </template>
+
+      <template id="tpl-ppslide">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Current Slide</div><span class="pp-w-dot"></span></div>
+        <div class="w-ppslide pp-w-slidebox">—</div>
+      </template>
+      <template id="tpl-ppnext">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Next Slide</div></div>
+        <div class="w-ppnext pp-w-slidebox pp-w-next">—</div>
+      </template>
+      <template id="tpl-pptimers">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Timers</div><span class="pp-w-dot"></span></div>
+        <div class="w-pptimers" style="flex:1;min-height:0;overflow-y:auto"><div class="state-msg">—</div></div>
+      </template>
+      <template id="tpl-ppposition">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Slide Position</div></div>
+        <div class="w-ppposition pp-w-big">—</div>
+      </template>
+      <template id="tpl-pptransport">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Now Playing</div></div>
+        <div class="w-pptransport pp-w-mid">—</div>
+      </template>
+      <template id="tpl-ppcapture">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Capture</div></div>
+        <div class="w-ppcapture pp-w-mid">—</div>
+      </template>
+      <template id="tpl-ppmessages">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Messages</div></div>
+        <div class="w-ppmessages" style="flex:1;min-height:0;overflow-y:auto"><div class="state-msg">—</div></div>
+      </template>
+      <template id="tpl-pp2timers">
+        <div class="section-header" style="margin-bottom:8px"><div class="section-title">Producer Timers</div><span class="pp-w-dot pp2"></span></div>
+        <div class="w-pp2timers" style="flex:1;min-height:0;overflow-y:auto"><div class="state-msg">—</div></div>
       </template>
 
       <template id="tpl-clock">
@@ -2676,6 +2721,14 @@ const WIDGET_LABELS = {
   notes: 'Notes',
   confirmations: 'Confirmations',
   section: 'Section Heading',
+  ppslide: 'PP: Current Slide',
+  ppnext: 'PP: Next Slide',
+  pptimers: 'PP: Timers',
+  ppposition: 'PP: Slide Position',
+  pptransport: 'PP: Now Playing',
+  ppcapture: 'PP: Capture Status',
+  ppmessages: 'PP: Messages',
+  pp2timers: 'PP: Producer Timers',
 };
 // Default sizes per type {w, h}
 const WIDGET_SIZES = {
@@ -2685,6 +2738,9 @@ const WIDGET_SIZES = {
   liverunsheet: { w: 6, h: 6 }, countdown: { w: 3, h: 3 },
   quickstats: { w: 3, h: 3 }, notes: { w: 4, h: 4 },
   confirmations: { w: 4, h: 4 }, section: { w: 12, h: 1 },
+  ppslide: { w: 6, h: 4 }, ppnext: { w: 3, h: 4 }, pptimers: { w: 4, h: 4 },
+  ppposition: { w: 3, h: 2 }, pptransport: { w: 3, h: 2 }, ppcapture: { w: 3, h: 2 },
+  ppmessages: { w: 4, h: 3 }, pp2timers: { w: 4, h: 4 },
 };
 // Default starting layout (instance id, type, position)
 const DEFAULT_LAYOUT = [
@@ -2786,6 +2842,11 @@ function buildWidget(instanceId, type) {
       break;
     }
     case 'confirmations': buildConfirmationsInto(root.querySelector('.w-confirmations-content')); break;
+    case 'ppslide': case 'ppnext': case 'pptimers': case 'ppposition':
+    case 'pptransport': case 'ppcapture': case 'ppmessages': case 'pp2timers':
+      ensurePropresenterPolling();
+      updatePropresenterWidgets(window._ppLast);
+      break;
     case 'section': {
       const t = root.querySelector('.w-section-title');
       if (t && widgetInstances[instanceId] && widgetInstances[instanceId].title) {
@@ -6761,6 +6822,97 @@ async function buildSetListService(svc) {
         ${teamCards}
       </div>
     </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PROPRESENTER WIDGETS — fillable on any dashboard, fed by the live poll
+// ═══════════════════════════════════════════════════════════════════
+function fmtTimerRows(timers) {
+  if (!timers || !timers.length) return '<div class="state-msg">No timers.</div>';
+  return timers.map(tm => {
+    const st = tm.state === 'running' ? 'running' : tm.state === 'overrun' ? 'overrun' : 'stopped';
+    return `<div class="pp-timer pp-timer-${st}" style="margin-bottom:8px">
+      <div class="pp-timer-name">${esc(tm.name || '')}</div>
+      <div class="pp-timer-time">${esc(tm.time || '')}</div>
+      <div class="pp-timer-state">${esc(tm.state || '')}</div>
+    </div>`;
+  }).join('');
+}
+
+// Fill every ProPresenter widget currently on the page from the live snapshot
+function updatePropresenterWidgets(d) {
+  const has = document.querySelector('.w-ppslide, .w-ppnext, .w-pptimers, .w-ppposition, .w-pptransport, .w-ppcapture, .w-ppmessages, .w-pp2timers');
+  if (!has) return;
+  const live = d && d.connected !== false;
+
+  // Connection dots
+  document.querySelectorAll('.pp-w-dot:not(.pp2)').forEach(el => {
+    el.className = 'pp-w-dot ' + (live ? 'on' : 'off');
+  });
+  document.querySelectorAll('.pp-w-dot.pp2').forEach(el => {
+    const on = live && d && d.machine2 && d.machine2.online;
+    el.className = 'pp-w-dot pp2 ' + (on ? 'on' : 'off');
+  });
+
+  const cur = d && d.slide && d.slide.current;
+  const nxt = d && d.slide && d.slide.next;
+  document.querySelectorAll('.w-ppslide').forEach(el =>
+    el.textContent = live && cur ? (cur.text || cur.label || '—') : '—');
+  document.querySelectorAll('.w-ppnext').forEach(el =>
+    el.textContent = live && nxt ? (nxt.text || nxt.label || '—') : '—');
+
+  document.querySelectorAll('.w-pptimers').forEach(el =>
+    el.innerHTML = live ? fmtTimerRows(d.timers) : '<div class="state-msg">Offline.</div>');
+
+  const p = (d && d.presentation) || {};
+  const pos = (p.index != null && p.total != null) ? `${p.index + 1} / ${p.total}`
+    : (p.index != null ? `${p.index + 1}` : '—');
+  document.querySelectorAll('.w-ppposition').forEach(el =>
+    el.innerHTML = live ? `<div>${pos}</div><div class="pp-w-sub">${esc(p.name || '')}</div>` : '—');
+
+  const t = d && d.transport;
+  document.querySelectorAll('.w-pptransport').forEach(el =>
+    el.innerHTML = live && t ? (t.playing ? '▶ ' : '❚❚ ') + esc(t.name || '') : '—');
+
+  const cap = d && d.capture;
+  document.querySelectorAll('.w-ppcapture').forEach(el => {
+    if (!live || !cap) { el.textContent = '—'; return; }
+    el.innerHTML = cap.status === 'active'
+      ? `<span style="color:var(--red)">● Recording ${esc(cap.time || '')}</span>` : 'Inactive';
+  });
+
+  document.querySelectorAll('.w-ppmessages').forEach(el => {
+    const msgs = [];
+    if (live && d.stageMessage) msgs.push(d.stageMessage);
+    if (live && d.messages) msgs.push(...d.messages);
+    el.innerHTML = msgs.length ? msgs.map(m => `<div class="pp-message" style="margin-bottom:6px">${esc(m)}</div>`).join('')
+      : '<div class="state-msg">No messages.</div>';
+  });
+
+  document.querySelectorAll('.w-pp2timers').forEach(el => {
+    const m2 = d && d.machine2;
+    if (!live || !m2 || !m2.online) { el.innerHTML = '<div class="state-msg">Producer offline.</div>'; return; }
+    el.innerHTML = fmtTimerRows(m2.timers);
+  });
+}
+
+// Poll the live feed whenever ANY PP widget exists on the current page,
+// independent of being on the ProPresenter tab.
+let ppWidgetPoll = null;
+function ensurePropresenterPolling() {
+  if (ppWidgetPoll) return;
+  const poll = async () => {
+    const has = document.querySelector('.w-ppslide, .w-ppnext, .w-pptimers, .w-ppposition, .w-pptransport, .w-ppcapture, .w-ppmessages, .w-pp2timers');
+    if (!has) { clearInterval(ppWidgetPoll); ppWidgetPoll = null; return; }
+    try {
+      const res = await fetch('/propresenter');
+      const d = await res.json();
+      window._ppLast = d;
+      updatePropresenterWidgets(d);
+    } catch (e) { /* ignore */ }
+  };
+  ppWidgetPoll = setInterval(poll, 1500);
+  poll();
 }
 
 // ═══════════════════════════════════════════════════════════════════
